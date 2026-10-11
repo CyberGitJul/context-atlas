@@ -1,0 +1,13 @@
+{
+  "model": "opus",
+  "effortLevel": "xhigh",
+  "env": { "SECRET_TOKEN": "do-not-leak-123" },
+  "skillOverrides": { "old-skill": "off" },
+  "enabledPlugins": { "demo@market": true },
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "bash \"$HOME/.claude/hooks/start.sh\"" }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "echo hi" }] }],
+    "PreToolUse": [{ "matcher": "Bash", "hooks": [{ "type": "command", "command": "API_KEY=sk-abcdefghijklmnop123 node x.js" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "bash \"$HOME/.claude/hooks/start.sh\" stop" }] }]
+  }
+}

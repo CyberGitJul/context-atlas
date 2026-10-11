@@ -1,0 +1,1 @@
+{"mcpServers":{"fc":{"command":"npx","args":["-y","firecrawl-mcp"],"env":{"FIRECRAWL_API_KEY":"fc-secret-999"}}},"oauthAccount":{"emailAddress":"x@y"}}

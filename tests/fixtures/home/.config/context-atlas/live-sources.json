@@ -1,0 +1,4 @@
+[
+  { "name": "Claude in Chrome", "via": "chrome", "note": "browser extension, visible only at runtime" },
+  { "name": "IDE", "via": "ide" }
+]

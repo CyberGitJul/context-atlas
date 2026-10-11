@@ -1,0 +1,1 @@
+{"version":2,"plugins":{"demo@market":[{"scope":"user","installPath":"__FIXTURE__/.claude/plugins/cache/market/demo/1.0.0","version":"1.0.0"}],"proj@market":[{"scope":"project","projectPath":"/x","installPath":"/nonexistent","version":"0.1"}]}}

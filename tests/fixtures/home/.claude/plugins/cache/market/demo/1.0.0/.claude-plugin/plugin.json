@@ -1,0 +1,1 @@
+{"name":"demo","mcpServers":{"demo-mcp":{"command":"node","args":["server.js"],"env":{"DEMO_KEY":"demo-secret-1"}}}}

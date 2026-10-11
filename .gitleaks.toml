@@ -1,0 +1,13 @@
+# Secret scan configuration (https://github.com/gitleaks/gitleaks).
+# The redaction tests need credential-shaped input. These exact fake values are
+# allowed; any other secret-like string, in tests or elsewhere, is still reported.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake credentials used by the redaction tests"
+regexes = [
+  '''^sk-abcdefghijklmnop123$''',
+  '''^0123456789abcdef0123456789abcdef$''',
+  '''^abcdef1234567890abcdef$''',
+]

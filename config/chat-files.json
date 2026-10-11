@@ -1,0 +1,4 @@
+{
+  "$comment": "Single files outside ~/.claude that the chat may propose to create or change (always via before/after review). Use ~/ for the home directory. Your own list goes into ~/.config/context-atlas/chat-files.json and replaces this one.",
+  "extraFiles": []
+}
