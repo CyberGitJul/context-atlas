@@ -37,6 +37,8 @@ Context Atlas puts all of it on one page, ordered by the moment it acts, and giv
 
 <img src="docs/images/condense.png" alt="Condense page: total word savings, the summary, and each section with its rule test result and the reviewer's fixes" width="62%">
 
+**See where your rules collide with plugin skills.** In the background, Claude checks every active plugin skill against your CLAUDE.md and rules and lists contradictions, unclear precedence and duplicates, each with verbatim quotes from both sides. The Conflicts view separates what still needs a decision from deliberate deviations, which stay visible. Unlike `/doctor`, which checks the technical health of Claude Code, this compares what the texts say.
+
 **A chat that knows the page you are on.** The chat sees the current page, reads other components in full when it needs them, and proposes changes as a diff you can apply. It also creates new skills, rules, subagents and slash commands. Before anything is written, it checks against what you already have and runs fixed checks on the new file (name, description, frontmatter).
 
 <img src="docs/images/chat.png" alt="Chat next to a hook: Claude finds that the guard script misses rm -rf ~ and git push -f, and proposes a fixed script to apply to the comparison" width="100%">
@@ -110,7 +112,7 @@ flowchart LR
 
 ## Privacy and security
 
-- Configuration text goes to the AI provider you chose, and only when you trigger an AI feature or the background explanations of hooks run. Values that look like secrets are masked before sending. The masking is pattern-based, so treat it as a safety net, not a guarantee.
+- Configuration text goes to the AI provider you chose, and only when you trigger an AI feature or a background task runs: the explanations of hooks and the conflict check of plugin skills (once per skill, again only after a text changed). Values that look like secrets are masked before sending. The masking is pattern-based, so treat it as a safety net, not a guarantee.
 - Each chat turn is logged, masked, to `~/.local/state/context-atlas/chat-logs/`. Logs older than 5 days are deleted.
 - Texts that contain secret-like values cannot be sent to the AI or edited in the app, so a save can never write a mask over a real secret.
 

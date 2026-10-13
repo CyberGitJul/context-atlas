@@ -2,6 +2,7 @@ import type { ActionId, Kind, NewKind } from '../../src/shared/model';
 import type { FlowStep } from '../../src/shared/flow';
 import { chat } from './locales/chat';
 import { condense } from './locales/condense';
+import { conflicts } from './locales/conflicts';
 import { create } from './locales/create';
 import { detail } from './locales/detail';
 
@@ -18,6 +19,7 @@ export const t = {
     view: 'View',
     viewOverview: 'Overview',
     viewSequence: 'Flow explained',
+    viewConflicts: 'Conflicts',
     highlighted: (label: string) => `Highlighted: ${label}`,
     clearHighlight: 'Clear highlight',
     hooksAt: (event: string) => `Hooks at ${event}`,
@@ -83,6 +85,7 @@ export const t = {
   } satisfies Record<ActionId, string>,
   detail,
   condense,
+  conflicts,
   create,
   chat,
   card: {

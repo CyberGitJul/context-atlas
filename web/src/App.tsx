@@ -10,6 +10,7 @@ import { Detail } from './Detail';
 import { FilePage } from './FilePage';
 import { NewPage } from './NewPage';
 import { CondensePage } from './CondensePage';
+import { ConflictsPage } from './Conflicts';
 import { Plus } from 'lucide-react';
 import { ChatPanel, ChatToggle } from './ChatPanel';
 import { PageProvider, usePublishPage } from './PageContext';
@@ -139,6 +140,7 @@ function Overview() {
             <button type="button" aria-pressed={view === 'sequence'} onClick={() => setView('sequence')}>
               {t.overview.viewSequence}
             </button>
+            <a href="#/conflicts">{t.overview.viewConflicts}</a>
           </div>
           <p className="ai-status" role="status">
             {aiStatus(ai, t)}
@@ -174,7 +176,7 @@ function Overview() {
   );
 }
 
-function currentRoute(): { detail: string | null; file: string | null; create: NewKind | null; condense: boolean } {
+function currentRoute(): { detail: string | null; file: string | null; create: NewKind | null; condense: boolean; conflicts: boolean } {
   const c = location.hash.match(/^#\/c\/(.+)$/);
   const f = location.hash.match(/^#\/f\/(.+)$/);
   // A hand-typed or broken link must not blank the whole app.
@@ -186,7 +188,7 @@ function currentRoute(): { detail: string | null; file: string | null; create: N
     }
   };
   const n = location.hash.match(/^#\/new\/([a-z]+)$/)?.[1];
-  return { detail: c ? decode(c[1]) : null, file: f ? decode(f[1]) : null, create: isNewKind(n) ? n : null, condense: location.hash === '#/condense' };
+  return { detail: c ? decode(c[1]) : null, file: f ? decode(f[1]) : null, create: isNewKind(n) ? n : null, condense: location.hash === '#/condense', conflicts: location.hash === '#/conflicts' };
 }
 
 const CHAT_OPEN_KEY = 'atlas.chat-open';
@@ -200,7 +202,7 @@ function readChatOpen(): boolean {
   }
 }
 
-/** Hash routes: #/ overview, #/c/<id> detail page, #/f/<path> file proposed in the chat, #/new/<kind> create a skill, rule, agent or command. The chat stays mounted across pages. */
+/** Hash routes: #/ overview, #/c/<id> detail page, #/f/<path> file proposed in the chat, #/new/<kind> create a skill, rule, agent or command, #/condense, #/conflicts. The chat stays mounted across pages. */
 export function App() {
   const [route, setRoute] = useState(currentRoute);
   const [chatOpen, setChatOpen] = useState(readChatOpen);
@@ -225,6 +227,8 @@ export function App() {
         <FilePage key={route.file} path={route.file} />
       ) : route.condense ? (
         <CondensePage />
+      ) : route.conflicts ? (
+        <ConflictsPage />
       ) : route.create ? (
         <NewPage key={route.create} kind={route.create} onOpenChat={() => setChatOpen(true)} />
       ) : (

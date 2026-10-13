@@ -12,6 +12,8 @@
   --trigger-soft: #fbecd9;
   --warn: #b42318;
   --warn-soft: #fdeceb;
+  --ok: #1d6b45;
+  --ok-soft: #e1f2e8;
   --focus: #3341a6;
   --radius-card: 6px;
   --radius-box: 10px;
@@ -34,6 +36,8 @@
     --trigger-soft: #3a2a17;
     --warn: #ff8a80;
     --warn-soft: #3a1d1d;
+    --ok: #7fd3a4;
+    --ok-soft: #173326;
     --focus: #95a2ff;
     color-scheme: dark;
   }
@@ -56,6 +60,8 @@ button { font: inherit; color: inherit; }
 .segmented { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--surface); }
 .segmented button { border: 0; background: none; padding: 6px 14px; cursor: pointer; min-height: 32px; }
 .segmented button[aria-pressed='true'] { background: var(--track); color: var(--surface); font-weight: 500; }
+.segmented a { display: inline-flex; align-items: center; padding: 6px 14px; min-height: 32px; color: var(--ink); text-decoration: none; border-left: 1px solid var(--rule); }
+.segmented a:hover { background: var(--track-soft); }
 .ai-status { margin: 0; font-size: .85rem; color: var(--muted); }
 
 /* Hints */
@@ -321,3 +327,61 @@ button { font: inherit; color: inherit; }
 .condense details { margin-top: 8px; }
 .condense details > summary { cursor: pointer; color: var(--track); }
 .condense h2 { font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; }
+
+/* Conflicts page: own rules against plugin skills. Track blue = your side, amber = the skill's side, green = settled. */
+.conflicts { max-width: 1180px; }
+.conflicts-progress { margin: 14px 0 0; color: var(--muted); }
+.conflicts-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 22px 0 14px; border-bottom: 1px solid var(--rule); }
+.conflicts-tabs button { font: inherit; background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 14px; min-height: 36px; color: var(--muted); cursor: pointer; }
+.conflicts-tabs button:hover { color: var(--ink); }
+.conflicts-tabs button[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--track); font-weight: 600; }
+.conflicts .theme { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-box); padding: 16px 20px; margin-bottom: 14px; }
+.conflicts .theme-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; }
+.conflicts .theme h2 { font-size: 1.15rem; font-weight: 600; overflow-wrap: anywhere; }
+.conflicts .count { margin-left: auto; color: var(--muted); font-size: .9rem; }
+.conflicts .state { display: inline-flex; align-items: center; gap: 5px; align-self: center; padding: 2px 9px; border-radius: 12px; font-size: .85rem; font-weight: 600; }
+.conflicts .state .icon { width: 14px; height: 14px; }
+.conflicts .state-new { background: var(--warn-soft); color: var(--warn); }
+.conflicts .state-ok { background: var(--ok-soft); color: var(--ok); }
+.conflicts .today { margin: 10px 0 8px; max-width: 80ch; }
+.conflicts .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0 0 12px; }
+.conflicts .chips li { font: .85rem var(--mono); background: var(--track-soft); color: var(--track); padding: 2px 8px; border-radius: 4px; }
+.conflicts .theme-actions { margin: 0 0 6px; }
+.conflicts .conflict-finding { border-top: 1px solid var(--rule); }
+.conflicts .conflict-finding summary { display: flex; align-items: baseline; gap: 10px; min-height: 32px; padding: 8px 0; cursor: pointer; list-style: none; }
+.conflicts .conflict-finding summary::-webkit-details-marker { display: none; }
+.conflicts .conflict-finding summary::before { content: ''; flex: none; align-self: flex-start; width: 7px; height: 7px; margin-top: .55em; border-right: 1.5px solid var(--muted); border-bottom: 1.5px solid var(--muted); transform: rotate(-45deg); }
+.conflicts .conflict-finding[open] summary::before { transform: rotate(45deg); }
+@media (prefers-reduced-motion: no-preference) { .conflicts .conflict-finding summary::before { transition: transform .15s; } }
+.conflicts .sev { flex: none; width: 52px; font-size: .8rem; font-weight: 600; }
+.conflicts .sev-high { color: var(--warn); }
+.conflicts .sev-medium { color: var(--trigger); }
+.conflicts .sev-low { color: var(--muted); }
+.conflicts .conflict-finding-skill { flex: none; font: .85rem var(--mono); color: var(--muted); }
+.conflicts .ftitle { flex: 1; min-width: 0; }
+.conflicts .ftype { flex: none; color: var(--muted); font-size: .85rem; }
+.conflicts .pair { display: grid; grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr); margin: 6px 0 12px; }
+.conflicts .side { margin: 0; padding: 12px 14px; border-radius: var(--radius-card); }
+.conflicts .side figcaption { margin-bottom: 6px; color: var(--muted); font-size: .82rem; }
+.conflicts .side blockquote { margin: 0; padding-left: 10px; overflow-wrap: anywhere; }
+.conflicts .side.own { background: var(--track-soft); }
+.conflicts .side.own blockquote { border-left: 3px solid var(--track); }
+.conflicts .side.theirs { background: var(--trigger-soft); }
+.conflicts .side.theirs blockquote { border-left: 3px solid var(--trigger); }
+.conflicts .seam { display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.conflicts .facts { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 4px 16px; margin: 0 0 10px; font-size: .95rem; }
+.conflicts .facts dt { color: var(--muted); }
+.conflicts .facts dd { margin: 0; max-width: 80ch; }
+.conflicts .conflict-finding-note { margin: 0 0 10px; color: var(--muted); font-size: .9rem; }
+.conflicts .rule-quote { margin: 12px 0 4px; padding: 10px 14px; border-left: 3px solid var(--ok); border-radius: 0 var(--radius-card) var(--radius-card) 0; background: var(--ok-soft); }
+.conflicts .since { margin: 0 0 10px; color: var(--muted); font-size: .85rem; }
+.conflicts-minor { margin: 22px 0 10px; color: var(--muted); font-size: 1rem; font-weight: 600; }
+@media (max-width: 720px) {
+  .conflicts .conflict-finding summary { flex-wrap: wrap; row-gap: 2px; }
+  .conflicts .conflict-finding .ftitle { flex-basis: 100%; padding-left: 17px; }
+  .conflicts .conflict-finding-skill { min-width: 0; overflow-wrap: anywhere; }
+  .conflicts .pair { grid-template-columns: minmax(0, 1fr); }
+  .conflicts .seam { height: 28px; transform: rotate(90deg); }
+  .conflicts .facts { grid-template-columns: minmax(0, 1fr); }
+  .conflicts .count { margin-left: 0; width: 100%; }
+}
