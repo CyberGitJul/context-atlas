@@ -52,7 +52,7 @@ function Report({ r }: { r: { summary: string; findings: Finding[] } }) {
   );
 }
 
-interface EnforceItem {
+export interface EnforceItem {
   rule: string;
   mechanism: 'hook' | 'permission' | 'not-enforceable';
   how: string;
@@ -102,7 +102,7 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function Enforce({ r }: { r: { summary: string; items: EnforceItem[] } }) {
+export function Enforce({ r }: { r: { summary: string; items: EnforceItem[] } }) {
   const d = t.detail.result;
   return (
     <>

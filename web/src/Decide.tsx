@@ -3,9 +3,11 @@ import type { ConflictsView, ConflictTheme, DecideProposal, Winner } from '../..
 import { Finding } from './Conflicts';
 import { DiffView } from './DiffView';
 import { usePublishPage } from './PageContext';
+import { Enforce, type EnforceItem } from './ResultView';
 import { t as texts } from './text';
 
 type Choice = 'own' | 'skills' | 'depends';
+type EnforceResult = { summary: string; items: EnforceItem[] };
 const CHOICES: Choice[] = ['own', 'skills', 'depends'];
 
 const skillsOf = (theme: ConflictTheme) => [...new Set(theme.findings.map((f) => f.skillName))];
@@ -55,16 +57,23 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
   const [choice, setChoice] = useState<Choice>('own');
   const [perSkill, setPerSkill] = useState<Record<string, Winner>>({});
   const [proposal, setProposal] = useState<DecideProposal | null>(null);
-  const [busy, setBusy] = useState<'write' | 'save' | null>(null);
+  const [busy, setBusy] = useState<'write' | 'save' | 'enforce' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ commit: string | null; warning: string | null; queued: number | null } | null>(null);
-  const elapsed = useElapsed(busy === 'write');
+  // The enforce check belongs to the text it was run on: a new sentence hides the old answer.
+  const [check, setCheck] = useState<{ proposal: DecideProposal; result: EnforceResult | null; error: string | null } | null>(null);
+  const shownCheck = proposal && check?.proposal === proposal ? check : null;
+  const elapsed = useElapsed(busy === 'write' || busy === 'enforce');
   const step2 = useRef<HTMLHeadingElement>(null);
+  const checkResult = useRef<HTMLDivElement>(null);
   const savedNotice = useRef<HTMLParagraphElement>(null);
   // Focus follows the result, so a screen reader reads what just appeared.
   useEffect(() => {
     if (proposal) step2.current?.focus();
   }, [proposal]);
+  useEffect(() => {
+    if (check?.result) checkResult.current?.focus();
+  }, [check]);
   useEffect(() => {
     if (saved) savedNotice.current?.focus();
   }, [saved]);
@@ -99,6 +108,20 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
       setProposal(await post<DecideProposal>('/api/conflicts/propose', { ownKey, winners }));
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Step 3: the existing "Enforce instead of ask" action on the rule as it would be saved; it only drafts, nothing is written. */
+  const enforce = async () => {
+    if (!proposal) return;
+    setBusy('enforce');
+    try {
+      const res = await post<{ result: EnforceResult }>(`/api/component/action?action=enforce&id=${encodeURIComponent(proposal.ownId)}`, { text: proposal.after });
+      setCheck({ proposal, result: res.result, error: null });
+    } catch (e) {
+      setCheck({ proposal, result: null, error: (e as Error).message });
     } finally {
       setBusy(null);
     }
@@ -252,6 +275,37 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
                     3
                   </span>
                   {t.step3}
+                </h2>
+                <p className="decide-note">{t.enforceNote}</p>
+                <div className="button-row">
+                  <button type="button" onClick={enforce} disabled={!!busy}>
+                    {t.enforce}
+                  </button>
+                  {busy === 'enforce' && (
+                    <span className="status" role="status">
+                      {t.enforcing}
+                      <span aria-hidden="true"> {t.seconds(elapsed)}</span>
+                    </span>
+                  )}
+                </div>
+                {shownCheck?.result && (
+                  <div className="decide-enforce" ref={checkResult} tabIndex={-1}>
+                    <Enforce r={shownCheck.result} />
+                  </div>
+                )}
+                {shownCheck?.error && (
+                  <p className="notice error" role="status">
+                    {shownCheck.error}
+                  </p>
+                )}
+              </section>
+
+              <section className="decide-step" aria-labelledby={`${id}-s4`}>
+                <h2 id={`${id}-s4`}>
+                  <span className="step-no" aria-hidden="true">
+                    4
+                  </span>
+                  {t.step4}
                 </h2>
                 <ul className="after">
                   <li>
