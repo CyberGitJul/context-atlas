@@ -29,6 +29,15 @@ describe('router client', () => {
     expect(body.schema.properties.injects.type).toEqual(['string', 'null']);
   });
 
+  it("json aborts with the caller's signal", async () => {
+    const { fetch, calls } = fakeFetch(200, ok);
+    const caller = new AbortController();
+    await createRouterClient({ url: 'http://r', apiKey: 'k', fetch }).json({ prompt: 'P', system: 'S', schema: {}, model: 'opus', signal: caller.signal });
+    expect(calls[0].init.signal?.aborted).toBe(false);
+    caller.abort();
+    expect(calls[0].init.signal?.aborted).toBe(true);
+  });
+
   it('sends at most 12000 characters of the input', async () => {
     const { fetch, calls } = fakeFetch(200, ok);
     await createRouterClient({ url: 'http://r', apiKey: 'k', fetch }).explain(job('x'.repeat(50_000)));

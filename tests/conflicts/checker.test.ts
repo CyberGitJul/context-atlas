@@ -45,9 +45,11 @@ async function setup(opts: { result?: () => Result; ai?: boolean } = {}) {
     state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }),
     runExclusive: (fn) => fn(),
   };
+  const signals: (AbortSignal | undefined)[] = [];
   const client = {
     json: async <T>(req: JsonRequest) => {
       prompts.push(req.prompt);
+      signals.push(req.signal);
       return { result: (opts.result ?? (() => ({ summary: '', findings: [FINDING] })))() as T, model: 'opus' };
     },
   };
@@ -63,10 +65,10 @@ async function setup(opts: { result?: () => Result; ai?: boolean } = {}) {
   const runAll = async () => {
     while (tasks.length) {
       const t = tasks.shift()!;
-      await t.run().catch(async (e: Error) => void (await t.fail?.(e)));
+      await t.run(new AbortController().signal).catch(async (e: Error) => void (await t.fail?.(e)));
     }
   };
-  return { ctx, store, tasks, prompts, checker, components, runAll, changes: () => changes };
+  return { ctx, store, tasks, prompts, signals, checker, components, runAll, changes: () => changes };
 }
 
 const skillOf = (components: Component[]) => pluginSkills(components)[0];
@@ -155,6 +157,14 @@ describe('conflict checker', () => {
     expect(view.progress.running).toBeNull();
     await s.checker.schedule(components);
     expect(s.tasks).toHaveLength(1);
+  });
+
+  it("passes the queue's abort signal to the AI request", async () => {
+    const s = await setup();
+    await s.checker.schedule(await s.components());
+    const signal = new AbortController().signal;
+    await s.tasks.shift()!.run(signal);
+    expect(s.signals[0]).toBe(signal);
   });
 
   it('without AI it shows stored results and queues nothing', async () => {

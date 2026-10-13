@@ -8,7 +8,7 @@ const message = (over: Partial<Message>): Message => ({ id: 'm', type: 'message'
 
 /** A stand-in for the SDK client: stream() plays the given events and final message, parse() returns `parsed`. */
 function fakeSdk(opts: { events?: unknown[]; final?: Message; parsed?: Partial<Message> & { parsed_output?: unknown }; fail?: Error }) {
-  const calls: { method: string; params: Record<string, unknown> }[] = [];
+  const calls: { method: string; params: Record<string, unknown>; options?: { signal?: AbortSignal } }[] = [];
   const client = {
     beta: {
       messages: {
@@ -22,8 +22,8 @@ function fakeSdk(opts: { events?: unknown[]; final?: Message; parsed?: Partial<M
             finalMessage: async () => opts.final ?? message({}),
           };
         },
-        async parse(params: Record<string, unknown>) {
-          calls.push({ method: 'parse', params });
+        async parse(params: Record<string, unknown>, options?: { signal?: AbortSignal }) {
+          calls.push({ method: 'parse', params, options });
           if (opts.fail) throw opts.fail;
           return { ...message({}), ...opts.parsed };
         },
@@ -125,5 +125,14 @@ describe('schemas the app sends', () => {
       });
       expect(calls).toHaveLength(1);
     }
+  });
+});
+
+describe('anthropic json and abort', () => {
+  it("passes the caller's signal to the SDK", async () => {
+    const { client, calls } = fakeSdk({ parsed: { parsed_output: { ok: true } } });
+    const caller = new AbortController();
+    await createAnthropicClient({ client }).json({ prompt: 'P', system: 'S', schema: { type: 'object' }, model: 'opus', signal: caller.signal });
+    expect(calls[0].options?.signal).toBe(caller.signal);
   });
 });

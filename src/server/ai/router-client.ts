@@ -27,6 +27,8 @@ export interface JsonRequest {
   model: string;
   /** How hard the model works on it; providers without the setting ignore it. */
   effort?: 'low' | 'medium' | 'high';
+  /** Ends the request early, e.g. when a background check makes way for a user call. */
+  signal?: AbortSignal;
 }
 
 /** Structured call against /v1/json; the model is chosen per request. */
@@ -191,7 +193,7 @@ export function createRouterClient(opts: { url: string; apiKey: string; model?: 
       method: 'POST',
       headers: { Authorization: `Bearer ${opts.apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: req.prompt, schema: req.schema, model: req.model, system: req.system }),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: req.signal ? AbortSignal.any([req.signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS),
     });
     const failed = busyOrError(res);
     if (failed) throw failed;
