@@ -11,6 +11,7 @@ interface Props {
 /** Hints that come with a way to act on them. */
 const ACTIONS: Record<string, { label: (t: Messages) => string; href: string }> = {
   'claude-md-long': { label: (t) => t.hints.condense, href: '#/condense' },
+  'conflicts-open': { label: (t) => t.hints.reviewConflicts, href: '#/conflicts' },
 };
 
 export function HintBar({ hints, selected, onSelect }: Props) {

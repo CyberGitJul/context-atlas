@@ -66,7 +66,7 @@ export const t = {
       close: { label: 'Compaction & end', hint: 'Context full or session ended' },
     } satisfies Record<FlowStep['id'], { label: string; hint: string }>,
   },
-  hints: { label: 'Hints', warn: 'Warning', info: 'Info', condense: 'Condense' },
+  hints: { label: 'Hints', warn: 'Warning', info: 'Info', condense: 'Condense', reviewConflicts: 'Review conflicts' },
   /** Quick actions, by id; the server sends the id, the label is shown from here. */
   actions: {
     classify: 'Classify',

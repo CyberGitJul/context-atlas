@@ -3,6 +3,8 @@ export const hints = {
   sourceUnreadable: (list: string) => `Could not be read, so its content is missing from the overview: ${list}`,
   claudeMdLong: (words: number, limit: number) => `The global CLAUDE.md has ${words} words (limit ${limit}) and is sent in full with every message.`,
   brokenItem: (section: string, skill: string, missing: boolean) => `“${section}” → skill \`${skill}\` (${missing ? 'does not exist or its plugin is off' : 'switched off'})`,
+  conflictsOpen: (rules: number, findings: number, plugins: string) =>
+    `${rules} ${rules === 1 ? 'rule of yours collides' : 'rules of yours collide'} with ${plugins} without saying who wins (${findings} ${findings === 1 ? 'finding' : 'findings'}).`,
   broken: (list: string) => `Pointer to nowhere: ${list}`,
   unlinkedGone: (skill: string, source: string) => `Skill \`${skill}\` comes from “${source}”, but that section no longer exists (renamed?)`,
   unlinkedNoPointer: (skill: string, section: string) => `Skill \`${skill}\` comes from “${section}”, but the section does not point to it`,

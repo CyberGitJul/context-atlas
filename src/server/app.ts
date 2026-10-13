@@ -27,7 +27,7 @@ import type { ExplainQueue } from './ai/queue.js';
 import type { ConflictChecker } from './conflicts/checker.js';
 import type { ConflictsView } from '../shared/conflicts.js';
 import type { EventHub } from './events.js';
-import { computeHints } from './hints.js';
+import { computeHints, conflictSummary } from './hints.js';
 import type { ScanContext } from './scan/context.js';
 import type { ClaudeGit } from './edit/claude-git.js';
 import { loadComponentText, resolveEditable } from './edit/resolve.js';
@@ -95,7 +95,13 @@ export function createApp(deps: AppDeps): Hono {
     await next();
   });
 
-  const hintsOf = (scan: GlobalScan) => computeHints(scan.components, { projectScopedPlugins: scan.projectScopedPlugins, latentFiles: scan.latentFiles, problems: scan.problems });
+  const hintsOf = async (scan: GlobalScan) =>
+    computeHints(scan.components, {
+      projectScopedPlugins: scan.projectScopedPlugins,
+      latentFiles: scan.latentFiles,
+      problems: scan.problems,
+      conflicts: deps.conflicts ? conflictSummary(await deps.conflicts.view(scan.components)) : undefined,
+    });
   const explanationsOf = (components: Component[]) => {
     const out: Record<string, Explanation> = {};
     for (const comp of components) {
@@ -121,7 +127,7 @@ export function createApp(deps: AppDeps): Hono {
     const overview: Overview = {
       scannedAt: new Date().toISOString(),
       components: scan.components,
-      hints: hintsOf(scan),
+      hints: await hintsOf(scan),
       explanations: explanationsOf(scan.components),
       ai: { enabled: queue !== null, provider: deps.ai.provider ? providerLabel(deps.ai.provider) : null, off: queue ? null : aiOff(), ...(queue?.state() ?? { pending: 0, running: false, failed: 0, failedHashes: [] }) },
     };
@@ -318,7 +324,7 @@ export function createApp(deps: AppDeps): Hono {
       return { area: areaForFile(t.abs, deps.ctx.claudeDir), context: fileContext({ display: t.display, exists: t.exists, warning: t.warning, text, savedText: t.current }), editable: true };
     }
     const scan = await scanGlobal(deps.ctx);
-    const hints = hintsOf(scan);
+    const hints = await hintsOf(scan);
     const explanations = explanationsOf(scan.components);
     if (isNewKind(p.new)) return { area: `new-${p.new}`, context: newContext(p.new, { components: scan.components, hints, explanations }), editable: false };
     if (typeof p.id !== 'string') return { area: 'overview', context: overviewContext({ components: scan.components, hints, explanations }), editable: false };

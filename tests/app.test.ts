@@ -81,6 +81,13 @@ describe('GET /api/conflicts', () => {
     expect(checker.schedule).toHaveBeenCalledTimes(1);
   });
 
+  it('the overview carries the conflicts hint from the checker', async () => {
+    const theme = { ownKey: 'CLAUDE.md#Rule A', ownName: 'Rule A', ownId: 'instruction:user:CLAUDE.md#0', minor: false, findings: [{ skillName: 'superpowers:a' }] };
+    const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => ({ ...VIEW, themes: [theme] }) as ConflictsView) };
+    const overview = (await (await (await withChecker(checker)).request('/api/overview')).json()) as Overview;
+    expect(overview.hints.find((h) => h.id === 'conflicts-open')).toMatchObject({ severity: 'warn', componentIds: ['instruction:user:CLAUDE.md#0'] });
+  });
+
   it('answers an empty view with aiOff when there is no checker', async () => {
     const app = await withChecker(null);
     expect(await (await app.request('/api/conflicts')).json()).toEqual({ themes: [], deliberate: [], progress: { total: 0, upToDate: 0, running: null, failed: [], lastCheck: null }, aiOff: true });

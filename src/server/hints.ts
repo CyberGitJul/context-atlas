@@ -1,3 +1,4 @@
+import type { ConflictsView } from '../shared/conflicts.js';
 import type { Component, Hint } from '../shared/model.js';
 import { pointersOf, resolveLinks, sourceKeyOf } from '../shared/skill-links.js';
 import type { ScanProblem } from './scan/context.js';
@@ -9,6 +10,19 @@ export interface HintExtras {
   projectScopedPlugins: string[];
   latentFiles: string[];
   problems?: ScanProblem[];
+  /** Own rules that collide with plugin skills without saying who wins (from the Conflicts view). */
+  conflicts?: { rules: number; findings: number; plugins: string[]; componentIds: string[] };
+}
+
+/** What the hint needs from the Conflicts view: open rules, their findings, the plugins and the rules' ids. */
+export function conflictSummary(view: ConflictsView): NonNullable<HintExtras['conflicts']> {
+  const findings = view.themes.flatMap((t) => t.findings);
+  return {
+    rules: view.themes.length,
+    findings: findings.length,
+    plugins: [...new Set(findings.map((f) => f.skillName.split(':')[0]))],
+    componentIds: view.themes.flatMap((t) => (t.ownId ? [t.ownId] : [])),
+  };
 }
 
 const ids = (list: Component[]) => list.map((c) => c.id);
@@ -38,6 +52,11 @@ export function computeHints(components: Component[], extra: HintExtras): Hint[]
       text: m.claudeMdLong(words, CLAUDE_MD_WORD_LIMIT),
       componentIds: ids(sections),
     });
+  }
+
+  if (extra.conflicts?.rules) {
+    const { rules, findings, plugins, componentIds } = extra.conflicts;
+    hints.push({ id: 'conflicts-open', severity: 'warn', text: m.conflictsOpen(rules, findings, plugins.join(', ')), componentIds });
   }
 
   // A pointer Claude cannot follow: the skill is gone (renamed, deleted) or switched off.

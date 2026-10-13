@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Component } from '../src/shared/model.js';
-import { computeHints } from '../src/server/hints.js';
+import type { ConflictFinding, ConflictsView } from '../src/shared/conflicts.js';
+import { computeHints, conflictSummary, type HintExtras } from '../src/server/hints.js';
 import { scanGlobal, type GlobalScan } from '../src/server/scan/index.js';
 import { makeFixtureHome } from './helpers/fixture.js';
 
@@ -9,7 +10,7 @@ beforeAll(async () => {
   scan = await scanGlobal(await makeFixtureHome());
 });
 
-const hintsFor = (extra: Partial<{ projectScopedPlugins: string[]; latentFiles: string[] }> = {}) =>
+const hintsFor = (extra: Partial<HintExtras> = {}) =>
   computeHints(scan.components, { projectScopedPlugins: scan.projectScopedPlugins, latentFiles: scan.latentFiles, ...extra });
 const hint = (id: string, list = hintsFor()) => list.find((h) => h.id === id);
 const namesOf = (ids: string[]) => ids.map((id) => scan.components.find((c) => c.id === id)!.name);
@@ -80,5 +81,34 @@ describe('skill pointer hints', () => {
     expect(h.text).toContain('Skill `own` comes from “S0”, but the section does not point to it');
     expect(h.text).toContain('Skill `orphan` comes from “CLAUDE.md#Gone”, but that section no longer exists');
     expect(h.text).not.toContain('`present`');
+  });
+});
+
+describe('conflicts hint', () => {
+  it('warns about own rules that collide with plugin skills', () => {
+    const h = hint('conflicts-open', hintsFor({ conflicts: { rules: 2, findings: 5, plugins: ['superpowers'], componentIds: ['instruction:user:CLAUDE.md#0'] } }));
+    expect(h).toEqual({ id: 'conflicts-open', severity: 'warn', text: '2 rules of yours collide with superpowers without saying who wins (5 findings).', componentIds: ['instruction:user:CLAUDE.md#0'] });
+  });
+
+  it('words a single rule and finding in the singular', () => {
+    expect(hint('conflicts-open', hintsFor({ conflicts: { rules: 1, findings: 1, plugins: ['a', 'b'], componentIds: [] } }))!.text).toBe('1 rule of yours collides with a, b without saying who wins (1 finding).');
+  });
+
+  it('has no conflicts hint when nothing needs a decision', () => {
+    expect(hint('conflicts-open', hintsFor({ conflicts: { rules: 0, findings: 0, plugins: [], componentIds: [] } }))).toBeUndefined();
+  });
+
+  it('conflictSummary counts themes, findings and plugins', () => {
+    const f = (skillName: string) => ({ skillName }) as ConflictFinding;
+    const view: ConflictsView = {
+      themes: [
+        { ownKey: 'CLAUDE.md#A', ownName: 'A', ownId: 'instruction:user:CLAUDE.md#0', minor: false, findings: [f('superpowers:a'), f('superpowers:b')] },
+        { ownKey: 'rules/gone.md', ownName: 'rules/gone.md', ownId: null, minor: true, findings: [f('superpowers:a')] },
+      ],
+      deliberate: [],
+      progress: { total: 2, upToDate: 2, running: null, failed: [], lastCheck: null },
+      aiOff: false,
+    };
+    expect(conflictSummary(view)).toEqual({ rules: 2, findings: 3, plugins: ['superpowers'], componentIds: ['instruction:user:CLAUDE.md#0'] });
   });
 });
