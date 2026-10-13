@@ -11,6 +11,29 @@ export function hasQuote(text: string, quote: string | null): boolean {
   return q !== '' && normQuote(text).includes(q);
 }
 
+const LIST_ITEM = /^\s{0,3}(?:[-*+]|\d+[.)])\s+/;
+const HEADING = /^#{1,6}\s/;
+
+/**
+ * The list item (with its continuation lines) or paragraph of `text` that holds `quote`, without the list marker;
+ * a heading is a block of its own. Null when the quote is not in the text.
+ */
+export function blockOf(text: string, quote: string): string | null {
+  for (const para of text.split(/\n\s*\n/)) {
+    const blocks: string[][] = [];
+    for (const line of para.split('\n')) {
+      const last = blocks.at(-1);
+      if (!last || LIST_ITEM.test(line) || HEADING.test(line) || HEADING.test(last[0])) blocks.push([line]);
+      else last.push(line);
+    }
+    const hit = blocks.map((b) => b.join('\n')).find((b) => hasQuote(b, quote));
+    if (hit) return hit.replace(LIST_ITEM, '').trim();
+    // A quote across several items belongs to the whole paragraph.
+    if (hasQuote(para, quote)) return para.trim();
+  }
+  return null;
+}
+
 /** One finding as the model returns it. */
 export interface RawFinding {
   type: ConflictType;

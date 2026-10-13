@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasQuote, normQuote, verifyFindings, type OwnText, type RawFinding } from '../../src/server/conflicts/quotes.js';
+import { blockOf, hasQuote, normQuote, verifyFindings, type OwnText, type RawFinding } from '../../src/server/conflicts/quotes.js';
 
 const own: OwnText[] = [
   { key: 'CLAUDE.md#Rule A', text: '## Rule A\nAlways ask **several** questions at once.' },
@@ -46,5 +46,15 @@ describe('quotes', () => {
 
   it('drops a finding whose own quote is in no own rule', () => {
     expect(verifyFindings([raw({ quoteOwn: 'Never ask.' })], own, SKILL).dropped).toBe(1);
+  });
+
+  it('blockOf finds the list item or paragraph that holds a quote, without its list marker', () => {
+    const text = '## Rule A\nIntro line.\n- First item.\n- **Vorrang:** One sentence. Second sentence\n  continues here.\n\nOther paragraph.';
+    const item = '**Vorrang:** One sentence. Second sentence\n  continues here.';
+    expect(blockOf(text, 'Second sentence continues here.')).toBe(item);
+    expect(blockOf(text, 'One sentence.')).toBe(item);
+    expect(blockOf(text, 'Other paragraph.')).toBe('Other paragraph.');
+    expect(blockOf(text, 'Intro line.')).toBe('Intro line.');
+    expect(blockOf(text, 'missing')).toBeNull();
   });
 });

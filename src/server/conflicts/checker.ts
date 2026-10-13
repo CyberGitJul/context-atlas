@@ -8,7 +8,7 @@ import { loadComponentText } from '../edit/resolve.js';
 import { redact } from '../redact.js';
 import { sha256, type ScanContext } from '../scan/context.js';
 import { scanGlobal } from '../scan/index.js';
-import { normQuote, verifyFindings, type OwnText, type RawFinding } from './quotes.js';
+import { blockOf, normQuote, verifyFindings, type OwnText, type RawFinding } from './quotes.js';
 import type { ConflictStore } from './store.js';
 
 export interface ConflictChecker {
@@ -188,11 +188,15 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
         })
         .sort((a, b) => serious(b.findings) - serious(a.findings) || confirmed(b.findings) - confirmed(a.findings) || a.ownName.localeCompare(b.ownName));
 
+      // One decision is one card: own sentences are grouped by the paragraph or list item they stand in.
+      const ownTexts = await Promise.all(ownSources(components).map(async (c) => (await loadComponentText(c, deps.ctx)).text));
+      const blockFor = (quote: string) => ownTexts.map((t) => blockOf(t, quote)).find((b) => b !== null) ?? quote;
       const groups = new Map<string, DeliberateGroup>();
       for (const f of findings) {
         if (f.state !== 'deliberate' || !f.settledBy) continue;
-        const key = `${f.settledBy}:${normQuote(f.precedenceQuote ?? '')}`;
-        const group = groups.get(key) ?? { settledBy: f.settledBy, quote: f.precedenceQuote ?? '', findings: [] };
+        const quote = f.settledBy === 'own' ? blockFor(f.precedenceQuote ?? '') : (f.precedenceQuote ?? '');
+        const key = `${f.settledBy}:${normQuote(quote)}`;
+        const group = groups.get(key) ?? { settledBy: f.settledBy, quote, findings: [] };
         group.findings.push(f);
         groups.set(key, group);
       }

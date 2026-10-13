@@ -135,6 +135,19 @@ describe('conflict checker', () => {
     expect((await s.checker.view(await s.components())).themes[0].rechecking).toBe(false);
   });
 
+  it('groups deliberate findings by the paragraph of the own sentence, not by the sentence quoted', async () => {
+    const settled = (o: Partial<RawFinding>) => ({ ...FINDING, precedence: 'explicit-own' as const, ...o });
+    const s = await setup({ result: () => ({ summary: '', findings: [settled({ precedenceQuote: 'Rule A wins here.' }), settled({ quoteSkill: 'name: demo-skill', precedenceQuote: 'It covers the name too.' })] }) });
+    const claudeMd = path.join(s.ctx.claudeDir, 'CLAUDE.md');
+    await writeFile(claudeMd, (await readFile(claudeMd, 'utf8')).replace('Text one two three.', 'Text one two three.\n- Precedence: Rule A wins here. It covers the name too.'));
+    await s.checker.schedule(await s.components());
+    await s.runAll();
+    const view = await s.checker.view(await s.components());
+    expect(view.deliberate).toHaveLength(1);
+    expect(view.deliberate[0]).toMatchObject({ settledBy: 'own', quote: 'Precedence: Rule A wins here. It covers the name too.' });
+    expect(view.deliberate[0].findings).toHaveLength(2);
+  });
+
   it('builds themes from a finished check', async () => {
     const s = await setup();
     await s.checker.schedule(await s.components());
