@@ -2,7 +2,7 @@ import { open, readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { SessionSummary, SessionTimeline, StepDetail } from '../../shared/sessions.js';
 import type { ScanContext } from '../scan/context.js';
-import { maskText, parseTimeline, type ParsedSession } from './timeline.js';
+import { maskText, parseTimeline, type FullStep, type ParsedSession } from './timeline.js';
 
 /** How many sessions the list shows, newest first across all projects. */
 export const LIST_LIMIT = 60;
@@ -81,8 +81,10 @@ export async function listSessions(ctx: ScanContext, limit = LIST_LIMIT): Promis
 }
 
 export interface SessionReader {
-  read(project: string, id: string): Promise<SessionTimeline | null>;
+  read(project: string, id: string): Promise<Omit<SessionTimeline, 'ai'> | null>;
   step(project: string, id: string, i: number): Promise<StepDetail | null>;
+  /** All steps with their full texts, for "Why?". */
+  steps(project: string, id: string): Promise<FullStep[] | null>;
 }
 
 /** Reads one session at a time and keeps it, so opening steps one after another does not parse the file again. */
@@ -112,5 +114,6 @@ export function createSessionReader(ctx: ScanContext): SessionReader {
       const step = (await load(project, id))?.parsed.steps[i];
       return step ? { i, text: step.text.slice(0, DETAIL_MAX), cut: step.text.length > DETAIL_MAX } : null;
     },
+    steps: async (project, id) => (await load(project, id))?.parsed.steps ?? null,
   };
 }

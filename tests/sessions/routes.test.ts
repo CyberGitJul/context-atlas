@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { SessionSummary, SessionTimeline, StepDetail } from '../../src/shared/sessions.js';
+import type { SessionSummary, SessionTimeline, StepDetail, WhyResult } from '../../src/shared/sessions.js';
 import { createApp } from '../../src/server/app.js';
 import { createExplanationCache } from '../../src/server/ai/cache.js';
 import { createEventHub } from '../../src/server/events.js';
@@ -11,7 +11,9 @@ import { makeFixtureHome } from '../helpers/fixture.js';
 const OLD = 'aaaaaaaa-0000-4000-8000-000000000001';
 const NEW = 'bbbbbbbb-0000-4000-8000-000000000002';
 
-async function setup() {
+type Edit = { result: unknown; calls: { prompt: string; system: string; model: string }[] } | null;
+
+async function setup(edit: Edit = null) {
   const ctx = await makeFixtureHome();
   const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-sessions-')), 'e.json'));
   await cache.load();
@@ -29,7 +31,13 @@ async function setup() {
   );
   await utimes(path.join(dir, `${OLD}.jsonl`), new Date('2026-10-01'), new Date('2026-10-01'));
   await writeFile(path.join(dir, 'notes.txt'), 'not a session');
-  const app = createApp({ ctx, ai: { cache, queue: null, events: createEventHub() }, allowedHosts: ['localhost'] });
+  const client = { json: async <T,>(req: { prompt: string; system: string; model: string }) => (edit!.calls.push(req), { result: edit!.result as T, model: req.model }) };
+  const app = createApp({
+    ctx,
+    ai: { cache, queue: null, events: createEventHub() },
+    allowedHosts: ['localhost'],
+    edit: edit ? { client, model: 'opus', promptsDir: path.join(process.cwd(), 'config', 'prompts') } : null,
+  });
   return { app, ctx };
 }
 
@@ -81,5 +89,36 @@ describe('session timeline routes', () => {
     const empty = createApp({ ctx: { ...ctx, claudeDir: path.join(ctx.homeDir, 'missing') }, ai: { cache: createExplanationCache(path.join(ctx.homeDir, 'e2.json')), queue: null, events: createEventHub() }, allowedHosts: ['localhost'] });
     expect(await (await empty.request('/api/sessions')).json()).toEqual({ sessions: [] });
     void app;
+  });
+
+  it('says whether "Why?" is available', async () => {
+    const off = (await (await (await setup()).app.request(`/api/sessions/-home-ada-projects-atlas/${NEW}`)).json()) as SessionTimeline;
+    const on = (await (await (await setup({ result: {}, calls: [] })).app.request(`/api/sessions/-home-ada-projects-atlas/${NEW}`)).json()) as SessionTimeline;
+    expect([off.ai, on.ai]).toEqual([false, true]);
+  });
+});
+
+describe('POST …/steps/:i/why', () => {
+  const why = (app: Awaited<ReturnType<typeof setup>>['app'], i: number) => app.request(`/api/sessions/-home-ada-projects-atlas/${NEW}/steps/${i}/why`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+
+  it('asks Opus with your message as a quotable source and checks the quotes', async () => {
+    const edit = { result: { verdict: 'You asked.', steered: [{ source: 'S1', quote: 'please', how: 'It was asked for.' }], ignored: [{ source: 'S1', quote: 'never said', why: 'x' }] }, calls: [] as { prompt: string; system: string; model: string }[] };
+    const { app } = await setup(edit);
+    const res = await why(app, 1);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as WhyResult;
+    expect(body).toMatchObject({ verdict: 'You asked.', sources: 1, model: 'opus' });
+    expect(body.steered[0]).toEqual({ source: 'Your message', quote: 'please', note: 'It was asked for.', quoteFound: true });
+    expect(body.ignored[0].quoteFound).toBe(false);
+    expect(edit.calls[0].prompt).toContain('## [S1] Your message\napi_key=*** please');
+    expect(edit.calls[0].prompt).not.toContain('sk-123');
+    expect(edit.calls[0].system).toContain('You explain why Claude');
+  });
+
+  it('explains only Claude steps, needs an AI provider and rejects incomplete answers', async () => {
+    expect((await why((await setup({ result: {}, calls: [] })).app, 0)).status).toBe(400);
+    expect((await why((await setup({ result: {}, calls: [] })).app, 5)).status).toBe(404);
+    expect((await why((await setup()).app, 1)).status).toBe(503);
+    expect((await why((await setup({ result: { verdict: 'x' }, calls: [] })).app, 1)).status).toBe(502);
   });
 });

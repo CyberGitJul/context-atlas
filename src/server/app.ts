@@ -36,6 +36,7 @@ import { loadComponentText, resolveEditable } from './edit/resolve.js';
 import { saveComponentPair, saveComponentText } from './edit/save.js';
 import { scanGlobal } from './scan/index.js';
 import { createSessionReader, listSessions } from './sessions/files.js';
+import { checkWhy, WHY_SCHEMA, whyContext, whyPrompt } from './sessions/why.js';
 import { keepPointers, linksFor, resolveLinks, skillifyBlock, skillPointers, sourceKeyOf } from '../shared/skill-links.js';
 
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist');
@@ -154,13 +155,36 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get('/api/sessions/:project/:id', async (c) => {
     const timeline = await sessions.read(c.req.param('project'), c.req.param('id'));
-    return timeline ? c.json(timeline) : c.json({ error: msg.app.sessions.notFound }, 404);
+    return timeline ? c.json({ ...timeline, ai: !!deps.edit }) : c.json({ error: msg.app.sessions.notFound }, 404);
   });
 
   app.get('/api/sessions/:project/:id/steps/:i', async (c) => {
     const i = Number(c.req.param('i'));
     const detail = Number.isInteger(i) && i >= 0 ? await sessions.step(c.req.param('project'), c.req.param('id'), i) : null;
     return detail ? c.json(detail) : c.json({ error: msg.app.sessions.notFound }, 404);
+  });
+
+  /** "Why?" for one of Claude's steps: Opus names the instructions that steered it and those it did not follow. Nothing is saved. */
+  app.post('/api/sessions/:project/:id/steps/:i/why', async (c) => {
+    const m = msg.app.sessions;
+    if (!deps.edit) return c.json({ error: aiOff() }, 503);
+    const steps = await sessions.steps(c.req.param('project'), c.req.param('id'));
+    const i = Number(c.req.param('i'));
+    if (!steps || !Number.isInteger(i) || !steps[i]) return c.json({ error: m.notFound }, 404);
+    const context = whyContext(steps, i);
+    if (!context) return c.json({ error: m.notClaude }, 400);
+    const edit = deps.edit;
+    const run = async () => edit.client.json<unknown>({ prompt: whyPrompt(context), system: await promptWithAddition('why'), schema: WHY_SCHEMA, model: edit.model, effort: 'high' });
+    try {
+      const { result, model } = queue ? await queue.runExclusive(run) : await run();
+      try {
+        return c.json(checkWhy(result, context, model));
+      } catch {
+        return c.json({ error: m.incomplete }, 502);
+      }
+    } catch (e) {
+      return c.json({ error: m.providerFailed((e as Error).message) }, 502);
+    }
   });
 
   /** After a decision: the skills of that rule are checked again first, every other due pair behind them. */

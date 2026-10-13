@@ -1,8 +1,9 @@
 import { ArrowLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useId, useMemo, useState } from 'react';
-import { INCOMING, type SessionSummary, type SessionTimeline, type StepDetail, type TimelineStep } from '../../src/shared/sessions';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { EXPLAINABLE, INCOMING, type SessionSummary, type SessionTimeline, type StepDetail, type TimelineStep, type WhyItem, type WhyResult } from '../../src/shared/sessions';
 import { usePublishPage } from './PageContext';
 import { t as texts } from './text';
+import { useElapsed } from './useElapsed';
 
 type Filter = 'all' | 'incoming' | 'claude';
 const FILTERS: Filter[] = ['all', 'incoming', 'claude'];
@@ -73,13 +74,50 @@ export function SessionsPage() {
   );
 }
 
-/** One row of the timeline; its full text is fetched the first time it is opened. */
-function Step({ step, project, id }: { step: TimelineStep; project: string; id: string }) {
+function WhyList({ title, items }: { title: string; items: WhyItem[] }) {
+  const t = texts.sessions.timeline;
+  if (!items.length) return null;
+  return (
+    <>
+      <h2>{title}</h2>
+      <ul>
+        {items.map((x, i) => (
+          <li key={i}>
+            <span className="why-source">{x.source}</span>
+            <blockquote>“{x.quote}”</blockquote>
+            {!x.quoteFound && <span className="why-unverified">{t.quoteMissing}</span>}
+            <p>{x.note}</p>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/** One row of the timeline; its full text is fetched the first time it is opened, "Why?" asks Opus on click. */
+function Step({ step, project, id, ai }: { step: TimelineStep; project: string; id: string; ai: boolean }) {
   const t = texts.sessions.timeline;
   const region = useId();
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<StepDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [why, setWhy] = useState<{ busy: boolean; result: WhyResult | null; error: string | null }>({ busy: false, result: null, error: null });
+  const elapsed = useElapsed(why.busy);
+  const whyBox = useRef<HTMLDivElement>(null);
+  // Focus follows the answer, so a screen reader reads what just appeared.
+  useEffect(() => {
+    if (why.result) whyBox.current?.focus();
+  }, [why.result]);
+  const ask = async () => {
+    setWhy({ busy: true, result: null, error: null });
+    try {
+      const res = await fetch(`/api/sessions/${encodeURIComponent(project)}/${encodeURIComponent(id)}/steps/${step.i}/why`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const body = (await res.json().catch(() => ({}))) as WhyResult & { error?: string };
+      setWhy(res.ok ? { busy: false, result: body, error: null } : { busy: false, result: null, error: body.error ?? `HTTP ${res.status}` });
+    } catch (e) {
+      setWhy({ busy: false, result: null, error: (e as Error).message });
+    }
+  };
   const toggle = () => {
     setOpen((o) => !o);
     if (detail || error) return;
@@ -92,12 +130,19 @@ function Step({ step, project, id }: { step: TimelineStep; project: string; id: 
         {time?.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
       </time>
       <div className="step-body">
-        <button type="button" className="step-head" aria-expanded={open} aria-controls={region} onClick={toggle}>
-          <ChevronRight className="icon step-chevron" aria-hidden="true" />
-          <span className="step-lane">{t.lanes[step.kind]}</span>
-          <span className="step-title">{step.title}</span>
-          {step.error && <span className="step-failed">{t.failed}</span>}
-        </button>
+        <div className="step-row">
+          <button type="button" className="step-head" aria-expanded={open} aria-controls={region} onClick={toggle}>
+            <ChevronRight className="icon step-chevron" aria-hidden="true" />
+            <span className="step-lane">{t.lanes[step.kind]}</span>
+            <span className="step-title">{step.title}</span>
+            {step.error && <span className="step-failed">{t.failed}</span>}
+          </button>
+          {ai && EXPLAINABLE.has(step.kind) && (
+            <button type="button" className="step-why" onClick={ask} disabled={why.busy} aria-label={t.whyLabel(step.title)}>
+              {t.why}
+            </button>
+          )}
+        </div>
         {!open && step.preview && step.preview !== step.title && <p className="step-preview">{step.preview}</p>}
         <div id={region} className="step-detail" hidden={!open}>
           {open && !detail && !error && <p className="status">{t.loadingStep}</p>}
@@ -110,6 +155,26 @@ function Step({ step, project, id }: { step: TimelineStep; project: string; id: 
             </>
           )}
         </div>
+        {why.busy && (
+          <p className="status" role="status">
+            {t.whyRunning}
+            <span aria-hidden="true"> {t.seconds(elapsed)}</span>
+          </p>
+        )}
+        {why.error && (
+          <p className="notice error" role="status">
+            {t.whyError(why.error)}
+          </p>
+        )}
+        {why.result && (
+          <div className="why" ref={whyBox} tabIndex={-1}>
+            <p className="why-verdict">{why.result.verdict}</p>
+            <WhyList title={t.steered} items={why.result.steered} />
+            {!why.result.steered.length && <p className="why-none">{t.noneSteered}</p>}
+            <WhyList title={t.ignored} items={why.result.ignored} />
+            <p className="why-foot">{t.whyFoot(why.result.model, why.result.sources)}</p>
+          </div>
+        )}
       </div>
     </li>
   );
@@ -163,7 +228,7 @@ export function SessionPage({ project, id }: { project: string; id: string }) {
           </div>
           <ol className="timeline">
             {shown.map((x) => (
-              <Step key={x.i} step={x} project={project} id={id} />
+              <Step key={x.i} step={x} project={project} id={id} ai={data.ai} />
             ))}
           </ol>
         </>

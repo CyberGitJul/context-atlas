@@ -39,6 +39,30 @@ export interface SessionSummary {
 export interface SessionTimeline {
   session: SessionSummary;
   steps: TimelineStep[];
+  /** An AI provider is set up, so "Why?" can explain Claude's steps. */
+  ai: boolean;
+}
+
+/** Steps "Why?" explains: what Claude did. */
+export const EXPLAINABLE: ReadonlySet<StepKind> = new Set(['tool', 'answer']);
+
+/** One instruction the assessment points to, with the quote checked against its source. */
+export interface WhyItem {
+  source: string;
+  quote: string;
+  /** How it shaped the action, or why it was not followed. */
+  note: string;
+  quoteFound: boolean;
+}
+
+/** "Why?" for one of Claude's steps: which instructions steered it and which applied but were not followed. */
+export interface WhyResult {
+  verdict: string;
+  steered: WhyItem[];
+  ignored: WhyItem[];
+  /** How many texts went to the model as sources. */
+  sources: number;
+  model: string;
 }
 
 export interface StepDetail {

@@ -5,6 +5,7 @@ import { DiffView } from './DiffView';
 import { usePublishPage } from './PageContext';
 import { Enforce, type EnforceItem } from './ResultView';
 import { t as texts } from './text';
+import { useElapsed } from './useElapsed';
 
 type Choice = 'own' | 'skills' | 'depends';
 type EnforceResult = { summary: string; items: EnforceItem[] };
@@ -29,18 +30,6 @@ async function post<T>(url: string, body: unknown): Promise<T> {
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new HttpError(json.error ?? `HTTP ${res.status}`, res.status);
   return json;
-}
-
-/** Seconds since `running` became true, for the waiting line. */
-function useElapsed(running: boolean) {
-  const [s, setS] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    setS(0);
-    const t = setInterval(() => setS((x) => x + 1), 1000);
-    return () => clearInterval(t);
-  }, [running]);
-  return s;
 }
 
 /**

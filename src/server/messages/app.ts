@@ -92,6 +92,9 @@ export const app = {
   },
   sessions: {
     notFound: 'Session or step not found. Reload the list.',
+    notClaude: '“Why?” explains only what Claude did: tool calls and answers.',
+    incomplete: 'The AI response is incomplete. Try again.',
+    providerFailed: (reason: string) => `The AI provider did not answer (${reason}). Try again later.`,
   },
   file: {
     readOnlyMode: 'Read-only mode: saving is off.',
