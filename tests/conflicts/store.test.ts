@@ -31,6 +31,28 @@ async function freshStore(file?: string) {
 }
 
 describe('conflict store', () => {
+  it('an unconfirmed finding of a rule the latest check settled for this skill by an own sentence becomes deliberate too', async () => {
+    const skillText = `${SKILL} Never bundle. Use a menu.`;
+    const store = await freshStore();
+    await store.applyRun(run({ skillText, findings: [f({ quoteSkill: 'Never bundle.' }), f({ quoteSkill: 'Use a menu.' })] }));
+    // The decision run reports the same conflict under another skill passage, settled by the own sentence.
+    await store.applyRun(run({ skillText, at: 'T2', findings: [f({ ...own, quoteSkill: SKILL })] }));
+    const byQuote = Object.fromEntries(store.findings().map((x) => [x.quoteSkill, x]));
+    expect(byQuote[SKILL]).toMatchObject({ state: 'deliberate', settledBy: 'own', unconfirmed: false });
+    for (const q of ['Never bundle.', 'Use a menu.']) {
+      expect(byQuote[q]).toMatchObject({ state: 'deliberate', settledBy: 'own', precedenceQuote: own.precedenceQuote, unconfirmed: true });
+    }
+  });
+
+  it('an unconfirmed finding of another rule stays new when the check settled a different rule', async () => {
+    const skillText = `${SKILL} Never bundle.`;
+    const texts = [{ key: 'CLAUDE.md#Rule A', text: OWN }, { key: 'CLAUDE.md#Rule B', text: '## Rule B\nBe brief.' }];
+    const store = await freshStore();
+    await store.applyRun(run({ skillText, own: texts, findings: [f({ ownKey: 'CLAUDE.md#Rule B', quoteOwn: 'Be brief.', quoteSkill: 'Never bundle.' })] }));
+    await store.applyRun(run({ skillText, own: texts, at: 'T2', findings: [f({ ...own })] }));
+    expect(store.findings().find((x) => x.ownKey === 'CLAUDE.md#Rule B')).toMatchObject({ state: 'new', settledBy: null, unconfirmed: true });
+  });
+
   it('stores a new finding as new with its pair hash', async () => {
     const store = await freshStore();
     await store.applyRun(run());

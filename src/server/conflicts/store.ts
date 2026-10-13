@@ -85,6 +85,8 @@ export function createConflictStore(file: string): ConflictStore {
     async applyRun(run) {
       const before = Object.values(findings).filter((x) => x.skillId === run.skillId);
       const seen = new Set<string>();
+      /** Rules this run found settled for this skill by an own sentence, with that sentence. */
+      const settledRules = new Map<string, string>();
       for (const f of run.findings) {
         const key = findingKey(f.ownKey, run.skillId, f.quoteSkill);
         const old = findings[key];
@@ -92,6 +94,7 @@ export function createConflictStore(file: string): ConflictStore {
         const keptBy = !nowBy && old?.state === 'deliberate' && old.settledBy && hasQuote(settlingText(run, old.settledBy), old.precedenceQuote) ? old.settledBy : null;
         const settledBy = nowBy ?? keptBy;
         const precedenceQuote = nowBy ? f.precedenceQuote : keptBy ? old!.precedenceQuote : null;
+        if (settledBy === 'own' && precedenceQuote && !settledRules.has(f.ownKey)) settledRules.set(f.ownKey, precedenceQuote);
         // The quoted skill passage changed (plugin update) and the same own sentence still covers the new text.
         const moved =
           !old && settledBy
@@ -120,7 +123,14 @@ export function createConflictStore(file: string): ConflictStore {
           continue;
         }
         const stillSettled = g.state === 'deliberate' && g.settledBy && hasQuote(settlingText(run, g.settledBy), g.precedenceQuote);
-        findings[g.key] = stillSettled ? { ...g, unconfirmed: true } : { ...g, unconfirmed: true, state: 'new', settledBy: null, precedenceQuote: null };
+        // The same rule against the same skill is settled by an own sentence now: an older finding the check quoted
+        // differently this time is part of that decision, not a new alarm.
+        const adopted = stillSettled ? undefined : settledRules.get(g.ownKey);
+        findings[g.key] = stillSettled
+          ? { ...g, unconfirmed: true }
+          : adopted
+            ? { ...g, unconfirmed: true, state: 'deliberate', settledBy: 'own', precedenceQuote: adopted }
+            : { ...g, unconfirmed: true, state: 'new', settledBy: null, precedenceQuote: null };
       }
       pairs[run.skillId] = { hash: run.hash, checkedAt: run.at, dropped: run.dropped, error: null };
       await persist();
