@@ -193,6 +193,9 @@ function ThemeCard({ theme }: { theme: ConflictTheme }) {
       </ul>
       {theme.ownId && (
         <p className="theme-actions">
+          <a className="hint-action primary" href={`#/conflicts/decide/${encodeURIComponent(theme.ownKey)}`}>
+            {t.decide.button}
+          </a>
           <a className="hint-action" href={`#/c/${encodeURIComponent(theme.ownId)}`}>
             {t.openRule}
           </a>

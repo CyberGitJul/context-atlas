@@ -346,7 +346,9 @@ button { font: inherit; color: inherit; }
 .conflicts .today { margin: 10px 0 8px; max-width: 80ch; }
 .conflicts .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0 0 12px; }
 .conflicts .chips li { font: .85rem var(--mono); background: var(--track-soft); color: var(--track); padding: 2px 8px; border-radius: 4px; }
-.conflicts .theme-actions { margin: 0 0 6px; }
+.conflicts .theme-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 6px; }
+.hint-action.primary { background: var(--track); color: var(--surface); }
+.hint-action.primary:hover { background: color-mix(in srgb, var(--track) 85%, var(--ink)); }
 .conflicts .conflict-finding { border-top: 1px solid var(--rule); }
 .conflicts .conflict-finding summary { display: flex; align-items: baseline; gap: 10px; min-height: 32px; padding: 8px 0; cursor: pointer; list-style: none; }
 .conflicts .conflict-finding summary::-webkit-details-marker { display: none; }
@@ -389,4 +391,40 @@ button { font: inherit; color: inherit; }
   .conflicts .seam { height: 28px; transform: rotate(90deg); }
   .conflicts .facts { grid-template-columns: minmax(0, 1fr); }
   .conflicts .count { margin-left: 0; width: 100%; }
+}
+
+/* Decide precedence: numbered steps (they are a sequence), choice cards, the sentence as before/after. */
+.decide .crumb { margin: 0 0 6px; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+.decide .crumb a { color: var(--track); }
+.decide-step { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-box); padding: 16px 20px; margin: 14px 0; }
+.decide-step h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 1.05rem; font-weight: 600; }
+.step-no { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--track); color: var(--surface); font-size: .8rem; font-weight: 600; }
+.decide .choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.decide .choice { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px 12px 40px; border: 1.5px solid var(--rule); border-radius: var(--radius-card); background: var(--surface); cursor: pointer; }
+.decide .choice input { position: absolute; top: 15px; left: 14px; margin: 0; accent-color: var(--track); }
+.decide .choice:has(input:checked) { border-color: var(--track); background: var(--track-soft); }
+.decide .choice:has(input:focus-visible) { outline: 2px solid var(--track); outline-offset: 2px; }
+.decide .choice input:focus-visible { outline: none; }
+.decide .chips { margin-top: 12px; }
+.decide .choices:disabled .choice { cursor: default; opacity: .7; }
+.decide .choice-title { font-weight: 600; }
+.decide .choice-note { color: var(--muted); font-size: .92rem; }
+.decide .per-skill { display: grid; margin: 12px 0 0; padding: 0; list-style: none; }
+.decide .per-skill li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 6px 0; border-top: 1px solid var(--rule); }
+.decide .per-skill-name { flex: 1 1 240px; min-width: 0; font: .9rem var(--mono); overflow-wrap: anywhere; }
+.decide .per-skill [role='radiogroup'] { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.decide .per-skill label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; }
+.decide .per-skill input { accent-color: var(--track); }
+.decide .button-row .status { color: var(--muted); }
+.decide-where { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 10px; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+.decide-words { color: var(--ink); font-weight: 600; }
+.decide-changes { margin: 10px 0 0; padding-left: 20px; }
+.decide .after { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.decide .after li { padding: 4px 0 4px 12px; border-left: 3px solid var(--rule); font-size: .95rem; }
+.decide .after b { display: block; font-weight: 600; }
+.decide-bar { justify-content: flex-end; margin-top: 14px; }
+.decide-bar .hint-action { min-height: 34px; }
+@media (max-width: 760px) {
+  .decide .choices, .decide .after { grid-template-columns: minmax(0, 1fr); }
+  .decide-step { padding: 14px 14px; }
 }
