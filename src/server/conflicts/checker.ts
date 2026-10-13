@@ -107,7 +107,7 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
     return new Map(pluginSkills(components).map((s) => [s.id, sha256([ownHash, s.hash, promptHash].join(':'))]));
   }
 
-  async function check(skillId: string, signal?: AbortSignal): Promise<void> {
+  async function check(skillId: string): Promise<void> {
     const ai = deps.ai!;
     const components = (await scanGlobal(deps.ctx)).components;
     const skill = pluginSkills(components).find((s) => s.id === skillId);
@@ -123,7 +123,7 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
     try {
       const own: OwnText[] = await Promise.all(ownSources(components).map(async (c) => ({ key: sourceKeyOf(c)!, text: (await loadComponentText(c, deps.ctx)).text })));
       const skillText = (await loadComponentText(skill, deps.ctx)).text;
-      const { result } = await ai.client.json<{ summary?: string; findings?: RawFinding[] }>({ prompt: pairPrompt(own, skill, skillText), system, schema: CONFLICTS_SCHEMA, model: ai.model, effort: 'high', signal });
+      const { result } = await ai.client.json<{ summary?: string; findings?: RawFinding[] }>({ prompt: pairPrompt(own, skill, skillText), system, schema: CONFLICTS_SCHEMA, model: ai.model, effort: 'high' });
       if (!Array.isArray(result.findings)) throw new Error('result without findings');
       const { findings, dropped } = verifyFindings(result.findings, own, skillText);
       await deps.store.applyRun({ skillId, skillName, hash, at: now(), findings, dropped, own, skillText });
@@ -142,7 +142,7 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
         if (deps.store.pair(skill.id)?.hash === hashes.get(skill.id)) continue;
         ai.queue.enqueueTask({
           id: `conflicts:${skill.id}`,
-          run: (signal) => check(skill.id, signal),
+          run: () => check(skill.id),
           // The stored hash stays, so the pair is due again on the next page load.
           fail: (e) => void deps.store.recordError(skill.id, e.message).then(deps.onChange, deps.onChange),
         });

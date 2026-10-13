@@ -260,34 +260,7 @@ describe('background tasks', () => {
 });
 
 describe('background tasks and user calls', () => {
-  it('a user call aborts a running background task, which runs again afterwards', async () => {
-    const log: string[] = [];
-    const errors: string[] = [];
-    let attempts = 0;
-    const events: QueueEvent[] = [];
-    const queue = createExplainQueue({ client: { explain: async (j) => explanation(j.hash) }, cache: await freshCache(), onEvent: (e) => events.push(e), sleep: async () => {} });
-    queue.enqueueTask({
-      id: 't1',
-      run: async (signal?: AbortSignal) => {
-        attempts++;
-        if (attempts === 1) {
-          // A long AI request: it ends early only when the queue aborts it.
-          await new Promise((_, reject) => {
-            signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
-            setTimeout(() => reject(new Error('too slow')), 1000);
-          });
-        }
-        log.push('t1');
-      },
-      fail: (e) => errors.push(e.message),
-    });
-    await queue.runExclusive(async () => void log.push('user'));
-    await idle(events);
-    expect(log).toEqual(['user', 't1']);
-    expect(attempts).toBe(2);
-    expect(errors).toEqual([]);
-  });
-
+  // A running attempt is not aborted: the router finishes it anyway and holds its single slot until then.
   it('a retry wait of a background task does not hold back a user call', async () => {
     const events: QueueEvent[] = [];
     let attempts = 0;

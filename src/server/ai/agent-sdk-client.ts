@@ -99,7 +99,7 @@ export function createAgentSdkClient(opts: { query?: QueryFn; model?: string } =
       maxTurns: 4,
       ...(req.effort ? { effort: req.effort } : {}),
     });
-    for await (const m of run(q, req.prompt, options, req.signal)) {
+    for await (const m of run(q, req.prompt, options)) {
       if (m.type !== 'result') continue;
       if (m.subtype !== 'success' || m.is_error) throw failure(m);
       if (m.structured_output == null) throw new RouterError(`Agent SDK: ${msg.app.client.noStructured}`);

@@ -12,8 +12,7 @@ export type QueueEvent = { type: 'explanation'; explanation: Explanation } | { t
 export interface BackgroundTask {
   /** Queued once while a task with this id is pending (a running one does not block). */
   id: string;
-  /** The signal fires when a user call needs the slot; the task is then queued again at the front. */
-  run: (signal: AbortSignal) => Promise<void>;
+  run: () => Promise<void>;
   /** Called once, with the last error, after the final failed attempt. */
   fail?: (e: Error) => void;
 }
@@ -45,7 +44,7 @@ export function createExplainQueue(deps: Deps): ExplainQueue {
   let paused = false;
   let exclusive = 0;
   let current: Promise<void> | null = null;
-  /** Aborts the running background task (not an explanation, those are short). */
+  /** Ends the retry wait of the running background task when a user call needs the slot. */
   let taskAbort: AbortController | null = null;
   const failed = new Set<string>();
 
@@ -89,8 +88,8 @@ export function createExplainQueue(deps: Deps): ExplainQueue {
     const controller = new AbortController();
     taskAbort = controller;
     try {
-      const result = await attempt(() => task.run(controller.signal), controller.signal);
-      // Made way for a user call: first in line again, no attempt lost.
+      const result = await attempt(task.run, controller.signal);
+      // Made way for a user call during a retry wait: first in line again, no attempt lost.
       if (result === 'aborted') {
         if (!tasks.some((t) => t.id === task.id)) tasks.unshift(task);
       } else if (result) task.fail?.(result);
@@ -141,7 +140,8 @@ export function createExplainQueue(deps: Deps): ExplainQueue {
     async runExclusive(fn) {
       exclusive++;
       try {
-        // A background check (25–40 s, plus retry waits) makes way; an explanation is short and finishes.
+        // A running request finishes (the router cannot cancel it and would keep its slot), but a background
+        // task waiting to retry makes way instead of holding the user call back for its wait and further attempts.
         taskAbort?.abort();
         if (current) await current;
         return await fn();

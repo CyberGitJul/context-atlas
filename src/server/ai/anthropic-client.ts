@@ -82,7 +82,7 @@ export function createAnthropicClient(opts: { client?: Anthropic; model?: string
         // The helper drops schema keywords the API does not take (e.g. `pattern`) and checks them on the result.
         output_config: { effort: req.effort ?? 'high', format: betaJSONSchemaOutputFormat(req.schema as { type: 'object' }) },
         ...FALLBACK,
-      }, { signal: req.signal });
+      });
       if (res.stop_reason === 'refusal') throw refusal(res.stop_details);
       if (res.parsed_output == null) throw new RouterError(msg.app.client.noValidJson(res.stop_reason === 'max_tokens'));
       return { result: res.parsed_output as T, model: res.model };

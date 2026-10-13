@@ -79,17 +79,3 @@ describe('agent sdk client', () => {
     await expect(createAgentSdkClient({ query: silent }).json({ prompt: 'p', system: 's', schema: {}, model: 'opus' })).rejects.toThrow('response without a structured result');
   });
 });
-
-describe('agent sdk json and abort', () => {
-  it("aborts the query when the caller's signal fires", async () => {
-    const caller = new AbortController();
-    const seen: AbortController[] = [];
-    const query: QueryFn = async function* (params) {
-      seen.push(params.options!.abortController!);
-      caller.abort();
-      yield success({ structured_output: { ok: true } }) as unknown as SDKMessage;
-    };
-    await createAgentSdkClient({ query }).json({ prompt: 'P', system: 'S', schema: { type: 'object' }, model: 'opus', signal: caller.signal });
-    expect(seen[0].signal.aborted).toBe(true);
-  });
-});
