@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { ConflictFinding } from '../../shared/conflicts.js';
 import { appDirs } from '../paths.js';
 import { sha256 } from '../scan/context.js';
-import { hasQuote, normQuote, type CheckedFinding } from './quotes.js';
+import { hasQuote, normQuote, type CheckedFinding, type OwnText } from './quotes.js';
 
 /** The last check of one plugin skill against the own instructions. */
 export interface PairRecord {
@@ -23,8 +23,8 @@ export interface PairRun {
   at: string;
   findings: CheckedFinding[];
   dropped: number;
-  /** All own instructions as sent (masked), to check quotes and precedence sentences. */
-  ownText: string;
+  /** Every own instruction as sent (masked), by rule: own quotes are checked against their rule, precedence against all. */
+  own: OwnText[];
   skillText: string;
 }
 
@@ -48,8 +48,11 @@ export function defaultConflictsFile(): string {
 
 const FORMAT = 1;
 
+const ownText = (run: PairRun) => run.own.map((o) => o.text).join('\n\n');
 /** The text a precedence sentence has to stand in: the own instructions or the skill. */
-const settlingText = (run: PairRun, by: 'own' | 'skill') => (by === 'own' ? run.ownText : run.skillText);
+const settlingText = (run: PairRun, by: 'own' | 'skill') => (by === 'own' ? ownText(run) : run.skillText);
+/** Whether the own quote still stands in the rule the finding belongs to (gone after a rename or a move). */
+const inOwnRule = (run: PairRun, f: { ownKey: string; quoteOwn: string }) => run.own.some((o) => o.key === f.ownKey && hasQuote(o.text, f.quoteOwn));
 
 /**
  * Findings as an inventory, not a snapshot: each run updates the findings of its pair, states carry over, and a
@@ -85,7 +88,7 @@ export function createConflictStore(file: string): ConflictStore {
       for (const f of run.findings) {
         const key = findingKey(f.ownKey, run.skillId, f.quoteSkill);
         const old = findings[key];
-        const nowBy = f.precedence === 'explicit-own' && hasQuote(run.ownText, f.precedenceQuote) ? 'own' : f.precedence === 'explicit-skill' && hasQuote(run.skillText, f.precedenceQuote) ? 'skill' : null;
+        const nowBy = f.precedence === 'explicit-own' && hasQuote(ownText(run), f.precedenceQuote) ? 'own' : f.precedence === 'explicit-skill' && hasQuote(run.skillText, f.precedenceQuote) ? 'skill' : null;
         const keptBy = !nowBy && old?.state === 'deliberate' && old.settledBy && hasQuote(settlingText(run, old.settledBy), old.precedenceQuote) ? old.settledBy : null;
         const settledBy = nowBy ?? keptBy;
         const precedenceQuote = nowBy ? f.precedenceQuote : keptBy ? old!.precedenceQuote : null;
@@ -112,7 +115,7 @@ export function createConflictStore(file: string): ConflictStore {
       }
       for (const g of before) {
         if (seen.has(g.key)) continue;
-        if (!hasQuote(run.ownText, g.quoteOwn) || !hasQuote(run.skillText, g.quoteSkill)) {
+        if (!inOwnRule(run, g) || !hasQuote(run.skillText, g.quoteSkill)) {
           delete findings[g.key];
           continue;
         }

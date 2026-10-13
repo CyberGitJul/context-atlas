@@ -126,7 +126,7 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
       const { result } = await ai.client.json<{ summary?: string; findings?: RawFinding[] }>({ prompt: pairPrompt(own, skill, skillText), system, schema: CONFLICTS_SCHEMA, model: ai.model, effort: 'high' });
       if (!Array.isArray(result.findings)) throw new Error('result without findings');
       const { findings, dropped } = verifyFindings(result.findings, own, skillText);
-      await deps.store.applyRun({ skillId, skillName, hash, at: now(), findings, dropped, ownText: own.map((o) => o.text).join('\n\n'), skillText });
+      await deps.store.applyRun({ skillId, skillName, hash, at: now(), findings, dropped, own, skillText });
     } finally {
       running = null;
       deps.onChange();

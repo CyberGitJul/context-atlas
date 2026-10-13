@@ -21,7 +21,7 @@ const f = (o: Partial<CheckedFinding> = {}): CheckedFinding => ({
   precedenceQuote: null,
   ...o,
 });
-const run = (o: Partial<PairRun> = {}): PairRun => ({ skillId: ID, skillName: 'superpowers:brainstorming', hash: 'h1', at: 'T1', findings: [f()], dropped: 0, ownText: OWN, skillText: SKILL, ...o });
+const run = (o: Partial<PairRun> = {}): PairRun => ({ skillId: ID, skillName: 'superpowers:brainstorming', hash: 'h1', at: 'T1', findings: [f()], dropped: 0, own: [{ key: 'CLAUDE.md#Rule A', text: OWN }], skillText: SKILL, ...o });
 const own = { precedence: 'explicit-own' as const, precedenceQuote: 'My rules win over **Superpowers**.' };
 
 async function freshStore(file?: string) {
@@ -71,7 +71,7 @@ describe('conflict store', () => {
   it('turns a deliberate finding new again when its sentence is removed', async () => {
     const store = await freshStore();
     await store.applyRun(run({ findings: [f(own)] }));
-    await store.applyRun(run({ at: 'T2', ownText: '## Rule A\nAlways ask several questions at once.', findings: [] }));
+    await store.applyRun(run({ at: 'T2', own: [{ key: 'CLAUDE.md#Rule A', text: '## Rule A\nAlways ask several questions at once.' }], findings: [] }));
     expect(store.findings()[0]).toMatchObject({ state: 'new', settledBy: null, precedenceQuote: null, unconfirmed: true });
   });
 
@@ -106,6 +106,21 @@ describe('conflict store', () => {
     await store.applyRun(run({ at: 'T2', skillText: changed, findings: [f({ quoteSkill: changed })] }));
     expect(store.findings()).toHaveLength(1);
     expect(store.findings()[0]).toMatchObject({ quoteSkill: changed, state: 'new', skillChangedAt: null });
+  });
+
+  it('resolves an unreported finding whose own rule is gone (renamed heading)', async () => {
+    const store = await freshStore();
+    await store.applyRun(run());
+    const renamed = OWN.replace('## Rule A', '## Rule Z');
+    await store.applyRun(run({ at: 'T2', own: [{ key: 'CLAUDE.md#Rule Z', text: renamed }], findings: [f({ ownKey: 'CLAUDE.md#Rule Z' })] }));
+    expect(store.findings().map((x) => x.ownKey)).toEqual(['CLAUDE.md#Rule Z']);
+  });
+
+  it('resolves an unreported finding whose own quote moved to another rule', async () => {
+    const store = await freshStore();
+    await store.applyRun(run());
+    await store.applyRun(run({ at: 'T2', own: [{ key: 'CLAUDE.md#Rule A', text: '## Rule A\nBe brief.' }, { key: 'CLAUDE.md#Other', text: OWN }], findings: [] }));
+    expect(store.findings()).toEqual([]);
   });
 
   it('recordError keeps the old hash so the pair stays due', async () => {
