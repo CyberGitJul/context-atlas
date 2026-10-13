@@ -24,6 +24,8 @@ import { msg } from './messages/index.js';
 import { genericPromptPath, personalAddition, personalPromptPath, readPrompt, withAddition } from './ai/prompts.js';
 import { checkCondensed, PROPOSE_SCHEMA, proposePrompt, REPAIR_SCHEMA, repairPrompt, type Section, splitSections, TEST_SCHEMA, testPrompt, words } from './ai/condense.js';
 import type { ExplainQueue } from './ai/queue.js';
+import type { ConflictChecker } from './conflicts/checker.js';
+import type { ConflictsView } from '../shared/conflicts.js';
 import type { EventHub } from './events.js';
 import { computeHints } from './hints.js';
 import type { ScanContext } from './scan/context.js';
@@ -44,6 +46,9 @@ export const DEFAULT_PORT = 8795;
 export const allowedHostsFor = (port: number) => [`127.0.0.1:${port}`, `localhost:${port}`, '127.0.0.1:5173', 'localhost:5173'];
 export const DEFAULT_ALLOWED_HOSTS = allowedHostsFor(DEFAULT_PORT);
 
+/** The Conflicts view without a checker: nothing stored, nothing checked. */
+const NO_CONFLICTS: ConflictsView = { themes: [], deliberate: [], progress: { total: 0, upToDate: 0, running: null, failed: [], lastCheck: null }, aiOff: true };
+
 export interface AppDeps {
   ctx: ScanContext;
   allowedHosts?: string[];
@@ -52,6 +57,8 @@ export interface AppDeps {
   git?: ClaudeGit | null;
   /** Every chat turn as a log line (kept a few days); absent in tests that don't need it. */
   chatLog?: ChatLog | null;
+  /** Background check of own instructions against plugin skills; absent in tests that don't need it. */
+  conflicts?: ConflictChecker | null;
   /** AI quick actions (best model, manual only); null/absent without an AI provider. */
   edit?: (ActionConfig & { client: RouterJsonClient & Partial<RouterChatClient> }) | null;
   ai: {
@@ -100,6 +107,7 @@ export function createApp(deps: AppDeps): Hono {
 
   app.get('/api/overview', async (c) => {
     const scan = await scanGlobal(deps.ctx);
+    await deps.conflicts?.schedule(scan.components);
     queue?.enqueue(
       [...scan.internal.values()].map((h) => ({
         hash: h.hash,
@@ -118,6 +126,14 @@ export function createApp(deps: AppDeps): Hono {
       ai: { enabled: queue !== null, provider: deps.ai.provider ? providerLabel(deps.ai.provider) : null, off: queue ? null : aiOff(), ...(queue?.state() ?? { pending: 0, running: false, failed: 0, failedHashes: [] }) },
     };
     return c.json(overview);
+  });
+
+  /** Where own instructions collide with plugin skills; scheduling is cheap, checks run in the queue. */
+  app.get('/api/conflicts', async (c) => {
+    if (!deps.conflicts) return c.json(NO_CONFLICTS);
+    const scan = await scanGlobal(deps.ctx);
+    await deps.conflicts.schedule(scan.components);
+    return c.json(await deps.conflicts.view(scan.components));
   });
 
   /** Other sources for comparison actions (masked, within budget). */

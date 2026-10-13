@@ -1,7 +1,8 @@
 import { cp, mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { ConflictsView } from '../src/shared/conflicts.js';
 import type { Overview } from '../src/shared/model.js';
 import type { ComponentLinks } from '../src/shared/skill-links.js';
 import { createApp } from '../src/server/app.js';
@@ -9,6 +10,7 @@ import { createExplanationCache } from '../src/server/ai/cache.js';
 import { createChatLog } from '../src/server/ai/chat-log.js';
 import type { ExplainQueue } from '../src/server/ai/queue.js';
 import type { ChatRequest, ExplainJob, ToolCall } from '../src/server/ai/router-client.js';
+import type { ConflictChecker } from '../src/server/conflicts/checker.js';
 import { createEventHub } from '../src/server/events.js';
 import { makeFixtureHome } from './helpers/fixture.js';
 
@@ -53,6 +55,35 @@ describe('GET /api/overview', () => {
     const overview = (await (await app.request('/api/overview')).json()) as Overview;
     expect(overview.ai.off).toContain('AI off');
     expect(overview.hints.find((h) => h.id === 'skill-dangling')!.text).toContain('Orphaned skill link');
+  });
+});
+
+describe('GET /api/conflicts', () => {
+  const VIEW: ConflictsView = { themes: [], deliberate: [], progress: { total: 3, upToDate: 2, running: 'superpowers:a', failed: [], lastCheck: 'T1' }, aiOff: false };
+  async function withChecker(conflicts: ConflictChecker | null) {
+    const ctx = await makeFixtureHome();
+    const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
+    return createApp({ ctx, ai: { cache, queue: null, events: createEventHub() }, allowedHosts: ['localhost'], conflicts });
+  }
+  const stub = () => ({ schedule: vi.fn(async () => {}), view: vi.fn(async () => VIEW) });
+
+  it("serves the checker's view and schedules the checks", async () => {
+    const checker = stub();
+    const app = await withChecker(checker);
+    expect(await (await app.request('/api/conflicts')).json()).toEqual(VIEW);
+    expect(checker.schedule).toHaveBeenCalledTimes(1);
+  });
+
+  it('/api/overview schedules the checks too', async () => {
+    const checker = stub();
+    const app = await withChecker(checker);
+    await app.request('/api/overview');
+    expect(checker.schedule).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers an empty view with aiOff when there is no checker', async () => {
+    const app = await withChecker(null);
+    expect(await (await app.request('/api/conflicts')).json()).toEqual({ themes: [], deliberate: [], progress: { total: 0, upToDate: 0, running: null, failed: [], lastCheck: null }, aiOff: true });
   });
 });
 
