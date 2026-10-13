@@ -5,6 +5,7 @@ import { condense } from './locales/condense';
 import { conflicts } from './locales/conflicts';
 import { create } from './locales/create';
 import { detail } from './locales/detail';
+import { sessions } from './locales/sessions';
 
 /** All interface texts, in English, in one place. Texts with numbers or names are small functions. */
 export const t = {
@@ -20,6 +21,7 @@ export const t = {
     viewOverview: 'Overview',
     viewSequence: 'Flow explained',
     viewConflicts: 'Conflicts',
+    viewSessions: 'Sessions',
     highlighted: (label: string) => `Highlighted: ${label}`,
     clearHighlight: 'Clear highlight',
     hooksAt: (event: string) => `Hooks at ${event}`,
@@ -86,6 +88,7 @@ export const t = {
   detail,
   condense,
   conflicts,
+  sessions,
   create,
   chat,
   card: {

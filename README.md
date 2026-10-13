@@ -39,6 +39,8 @@ Context Atlas puts all of it on one page, ordered by the moment it acts, and giv
 
 **See where your rules collide with plugin skills.** In the background, Claude checks every active plugin skill against your CLAUDE.md and rules and lists contradictions, unclear precedence and duplicates, each with verbatim quotes from both sides. The Conflicts view separates what still needs a decision from deliberate deviations, which stay visible. “Decide precedence…” settles a rule: you pick whether your rule or the skills win (or decide per skill), Claude writes an explicit precedence sentence into that rule, and you review it as before/after with its word cost before it is saved and committed. The skills of that rule are then checked again first, and the findings the sentence covers move to the deliberate deviations. Unlike `/doctor`, which checks the technical health of Claude Code, this compares what the texts say.
 
+**Replay what reached Claude in a session.** The Sessions view reads the transcripts in `~/.claude/projects` and lays out one session as a timeline: your messages, the instruction files and skill lists that were loaded, the text each hook injected and the skill bodies Claude pulled in, next to every tool call and answer of Claude. Filter by what came in or by what Claude did, and open any step for its full text. Transcripts are only read: nothing is sent to the AI, and secret-like values and your home folder are masked.
+
 **A chat that knows the page you are on.** The chat sees the current page, reads other components in full when it needs them, and proposes changes as a diff you can apply. It also creates new skills, rules, subagents and slash commands. Before anything is written, it checks against what you already have and runs fixed checks on the new file (name, description, frontmatter).
 
 <img src="docs/images/chat.png" alt="Chat next to a hook: Claude finds that the guard script misses rm -rf ~ and git push -f, and proposes a fixed script to apply to the comparison" width="100%">
@@ -106,13 +108,14 @@ flowchart LR
   S -->|"masked text,<br>on demand"| A["AI provider<br>Agent SDK · Claude API · router"]
 ```
 
-- **Read:** one scanner per source (instructions, rules, skills, hooks, MCP, plugins, agents, commands, output styles, settings, memory) reads fresh from disk on every request. Nothing is cached except the AI explanations.
+- **Read:** one scanner per source (instructions, rules, skills, hooks, MCP, plugins, agents, commands, output styles, settings, memory) reads fresh from disk on every request. Nothing is cached except the AI explanations and the session last opened in the timeline.
 - **Write:** only your own files under `~/.claude` (and skills inside `PROJECT_ROOTS`) are editable. Plugin files, claude.ai-synced skills and anything Claude Code manages itself stay read-only. Every save checks that the file did not change meanwhile, keeps a backup in `~/.cache/context-atlas/backups` and commits to `~/.local/share/context-atlas/claude-config.git`. That git history lives outside `~/.claude` and tracks only hand-written configuration.
 - **AI:** structured answers (JSON schemas) for the quick actions; a streamed chat with one read tool. Explanations are cached per model.
 
 ## Privacy and security
 
 - Configuration text goes to the AI provider you chose, and only when you trigger an AI feature or a background task runs: the explanations of hooks and the conflict check of plugin skills (once per skill, again only after a text changed). Values that look like secrets are masked before sending. The masking is pattern-based, so treat it as a safety net, not a guarantee.
+- Session transcripts in `~/.claude/projects` are read only when you open the Sessions view. They are never sent to the AI provider.
 - Each chat turn is logged, masked, to `~/.local/state/context-atlas/chat-logs/`. Logs older than 5 days are deleted.
 - Texts that contain secret-like values cannot be sent to the AI or edited in the app, so a save can never write a mask over a real secret.
 

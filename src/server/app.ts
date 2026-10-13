@@ -35,6 +35,7 @@ import type { ClaudeGit } from './edit/claude-git.js';
 import { loadComponentText, resolveEditable } from './edit/resolve.js';
 import { saveComponentPair, saveComponentText } from './edit/save.js';
 import { scanGlobal } from './scan/index.js';
+import { createSessionReader, listSessions } from './sessions/files.js';
 import { keepPointers, linksFor, resolveLinks, skillifyBlock, skillPointers, sourceKeyOf } from '../shared/skill-links.js';
 
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist');
@@ -80,6 +81,7 @@ export function createApp(deps: AppDeps): Hono {
   const { cache, queue, events } = deps.ai;
   const aiOff = () => aiOffText(deps.ai.off ?? { code: 'none' });
   const allowedHosts = new Set(deps.allowedHosts ?? DEFAULT_ALLOWED_HOSTS);
+  const sessions = createSessionReader(deps.ctx);
 
   // Only this machine's host name (blocks DNS rebinding) on every route.
   app.use('*', async (c, next) => {
@@ -145,6 +147,20 @@ export function createApp(deps: AppDeps): Hono {
     const scan = await scanGlobal(deps.ctx);
     if (c.req.query('schedule') !== '0') await deps.conflicts.schedule(scan.components);
     return c.json(await deps.conflicts.view(scan.components));
+  });
+
+  /** Debugger, first step: session transcripts as a timeline, read only. */
+  app.get('/api/sessions', async (c) => c.json({ sessions: await listSessions(deps.ctx) }));
+
+  app.get('/api/sessions/:project/:id', async (c) => {
+    const timeline = await sessions.read(c.req.param('project'), c.req.param('id'));
+    return timeline ? c.json(timeline) : c.json({ error: msg.app.sessions.notFound }, 404);
+  });
+
+  app.get('/api/sessions/:project/:id/steps/:i', async (c) => {
+    const i = Number(c.req.param('i'));
+    const detail = Number.isInteger(i) && i >= 0 ? await sessions.step(c.req.param('project'), c.req.param('id'), i) : null;
+    return detail ? c.json(detail) : c.json({ error: msg.app.sessions.notFound }, 404);
   });
 
   /** After a decision: the skills of that rule are checked again first, every other due pair behind them. */

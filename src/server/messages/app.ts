@@ -90,6 +90,9 @@ export const app = {
     frontmatterChanged: 'The proposal changed the frontmatter of the rule file. Try again.',
     providerFailed: (reason: string) => `The AI provider did not answer (${reason}). Try again later.`,
   },
+  sessions: {
+    notFound: 'Session or step not found. Reload the list.',
+  },
   file: {
     readOnlyMode: 'Read-only mode: saving is off.',
     notSaved: (reason: string) => `Not saved: ${reason}`,
