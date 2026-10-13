@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FLOW_STEPS, hookCountsByEvent, stepOf } from '../../src/shared/flow';
 import { isNewKind, NEW_KINDS, type AiState, type Component, type Explanation, type Hint, type NewKind, type Overview } from '../../src/shared/model';
 import { AlwaysBand } from './AlwaysBand';
@@ -12,6 +12,7 @@ import { NewPage } from './NewPage';
 import { CondensePage } from './CondensePage';
 import { ConflictsPage } from './Conflicts';
 import { DecidePage } from './Decide';
+import { useServerEvents } from './serverEvents';
 import { Plus } from 'lucide-react';
 import { ChatPanel, ChatToggle } from './ChatPanel';
 import { PageProvider, usePublishPage } from './PageContext';
@@ -48,7 +49,7 @@ function Overview() {
   const [view, setView] = useState<View>('overview');
   const [selection, setSelection] = useState<Selection | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch('/api/overview')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(
@@ -60,19 +61,22 @@ function Overview() {
         (e: Error) => setError(e.message),
       );
   }, []);
+  useEffect(load, [load]);
 
-  useEffect(() => {
-    const source = new EventSource('/api/events');
-    source.addEventListener('explanation', (ev) => {
-      const { explanation } = JSON.parse((ev as MessageEvent).data) as { explanation: Explanation };
-      setExplanations((prev) => ({ ...prev, [explanation.hash]: explanation }));
-    });
-    source.addEventListener('queue', (ev) => {
-      const { state } = JSON.parse((ev as MessageEvent).data) as { state: Omit<AiState, 'enabled'> };
-      setAi((prev) => ({ ...prev, enabled: prev?.enabled ?? true, ...state }));
-    });
-    return () => source.close();
-  }, []);
+  // Explanations and queue state arrive live; back from the background the overview is loaded again.
+  useServerEvents(
+    {
+      explanation: (data) => {
+        const { explanation } = data as { explanation: Explanation };
+        setExplanations((prev) => ({ ...prev, [explanation.hash]: explanation }));
+      },
+      queue: (data) => {
+        const { state } = data as { state: Omit<AiState, 'enabled'> };
+        setAi((prev) => ({ ...prev, enabled: prev?.enabled ?? true, ...state }));
+      },
+    },
+    load,
+  );
 
   const derived = useMemo(() => {
     if (!overview) return null;

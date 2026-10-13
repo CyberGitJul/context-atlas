@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowLeftRight, Check, RefreshCw, TriangleAlert } from 'luci
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { ConflictFinding, ConflictsView, ConflictTheme, DeliberateGroup } from '../../src/shared/conflicts';
 import { usePublishPage } from './PageContext';
+import { useServerEvents } from './serverEvents';
 import { t as texts } from './text';
 
 type Tab = 'open' | 'deliberate';
@@ -56,13 +57,9 @@ export function ConflictsPage() {
       );
   }, []);
 
-  // Each check that starts or ends sends a `conflicts` event; the page then reloads the view.
-  useEffect(() => {
-    load(true);
-    const source = new EventSource('/api/events');
-    source.addEventListener('conflicts', () => load(false));
-    return () => source.close();
-  }, [load]);
+  // Each check that starts or ends sends a `conflicts` event; the page then reloads the view (also back from the background).
+  useEffect(() => load(true), [load]);
+  useServerEvents({ conflicts: () => load(false) }, () => load(false));
 
   // Tabs pattern: arrow keys, Home and End move between the tabs; only the selected one is in the tab order.
   const onTabKey = (e: KeyboardEvent<HTMLButtonElement>) => {
