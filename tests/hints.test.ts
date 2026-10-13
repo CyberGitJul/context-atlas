@@ -102,8 +102,8 @@ describe('conflicts hint', () => {
     const f = (skillName: string, unconfirmed: boolean) => ({ skillName, unconfirmed }) as ConflictFinding;
     const view: ConflictsView = {
       themes: [
-        { ownKey: 'CLAUDE.md#A', ownName: 'A', ownId: 'id-a', minor: false, findings: [f('superpowers:a', false), f('superpowers:b', true)] },
-        { ownKey: 'CLAUDE.md#B', ownName: 'B', ownId: 'id-b', minor: true, findings: [f('other:c', true)] },
+        { ownKey: 'CLAUDE.md#A', ownName: 'A', ownId: 'id-a', minor: false, rechecking: false, findings: [f('superpowers:a', false), f('superpowers:b', true)] },
+        { ownKey: 'CLAUDE.md#B', ownName: 'B', ownId: 'id-b', minor: true, rechecking: false, findings: [f('other:c', true)] },
       ],
       deliberate: [],
       progress: { total: 2, upToDate: 2, running: null, failed: [], lastCheck: null },
@@ -116,8 +116,8 @@ describe('conflicts hint', () => {
     const f = (skillName: string) => ({ skillName }) as ConflictFinding;
     const view: ConflictsView = {
       themes: [
-        { ownKey: 'CLAUDE.md#A', ownName: 'A', ownId: 'instruction:user:CLAUDE.md#0', minor: false, findings: [f('superpowers:a'), f('superpowers:b')] },
-        { ownKey: 'rules/gone.md', ownName: 'rules/gone.md', ownId: null, minor: true, findings: [f('superpowers:a')] },
+        { ownKey: 'CLAUDE.md#A', ownName: 'A', ownId: 'instruction:user:CLAUDE.md#0', minor: false, rechecking: false, findings: [f('superpowers:a'), f('superpowers:b')] },
+        { ownKey: 'rules/gone.md', ownName: 'rules/gone.md', ownId: null, minor: true, rechecking: false, findings: [f('superpowers:a')] },
       ],
       deliberate: [],
       progress: { total: 2, upToDate: 2, running: null, failed: [], lastCheck: null },

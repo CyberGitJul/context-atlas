@@ -158,6 +158,7 @@ export function createApp(deps: AppDeps): Hono {
     for (const f of [...view.themes.flatMap((t) => t.findings), ...view.deliberate.flatMap((g) => g.findings)]) {
       if (f.ownKey === body.ownKey && !skills.has(f.skillId)) skills.set(f.skillId, f.skillName);
     }
+    deps.conflicts.decided(body.ownKey);
     await deps.conflicts.schedule(scan.components, [...skills.keys()]);
     return c.json({ queued: [...skills.values()] });
   });

@@ -114,6 +114,27 @@ describe('conflict checker', () => {
     expect(s.prompts[0]).not.toMatch(/ghp_abc/);
   });
 
+  it('a rule just decided shows as re-checking until its skills are checked on the new text', async () => {
+    const s = await setup();
+    await s.checker.schedule(await s.components());
+    await s.runAll();
+    const claudeMd = path.join(s.ctx.claudeDir, 'CLAUDE.md');
+    await writeFile(claudeMd, (await readFile(claudeMd, 'utf8')).replace('Text one two three.', 'Text one two three.\n- Precedence: the skill wins.'));
+    s.checker.decided('CLAUDE.md#Rule A');
+    expect((await s.checker.view(await s.components())).themes[0].rechecking).toBe(true);
+    await s.checker.schedule(await s.components());
+    await s.runAll();
+    expect((await s.checker.view(await s.components())).themes[0].rechecking).toBe(false);
+  });
+
+  it('a due rule nobody decided is not marked re-checking', async () => {
+    const s = await setup();
+    await s.checker.schedule(await s.components());
+    await s.runAll();
+    await appendFile(path.join(s.ctx.claudeDir, 'CLAUDE.md'), '\n## Rule C\nSix.\n');
+    expect((await s.checker.view(await s.components())).themes[0].rechecking).toBe(false);
+  });
+
   it('builds themes from a finished check', async () => {
     const s = await setup();
     await s.checker.schedule(await s.components());

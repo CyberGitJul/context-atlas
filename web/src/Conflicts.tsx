@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowLeftRight, Check, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowLeftRight, Check, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { ConflictFinding, ConflictsView, ConflictTheme, DeliberateGroup } from '../../src/shared/conflicts';
 import { usePublishPage } from './PageContext';
@@ -176,16 +176,27 @@ function ThemeCard({ theme }: { theme: ConflictTheme }) {
   return (
     <section className="theme" aria-labelledby={id}>
       <header className="theme-head">
-        <span className="state state-new">
-          <TriangleAlert className="icon" aria-hidden="true" />
-          {t.stateNew}
-        </span>
+        {theme.rechecking ? (
+          <span className="state state-rechecking">
+            <RefreshCw className="icon" aria-hidden="true" />
+            {t.stateRechecking}
+          </span>
+        ) : (
+          <span className="state state-new">
+            <TriangleAlert className="icon" aria-hidden="true" />
+            {t.stateNew}
+          </span>
+        )}
         <h2 id={id}>{theme.ownName}</h2>
         <span className="count">{t.count(shown.length, skills.length, high)}</span>
       </header>
-      <p className="today">
-        <strong>{t.noPrecedence}</strong> {firstSentence(shown[0]?.whoWinsToday ?? '')}
-      </p>
+      {theme.rechecking ? (
+        <p className="today">{t.recheckingNote}</p>
+      ) : (
+        <p className="today">
+          <strong>{t.noPrecedence}</strong> {firstSentence(shown[0]?.whoWinsToday ?? '')}
+        </p>
+      )}
       <ul className="chips">
         {skills.map((s) => (
           <li key={s}>{s}</li>
@@ -193,9 +204,12 @@ function ThemeCard({ theme }: { theme: ConflictTheme }) {
       </ul>
       {theme.ownId && (
         <p className="theme-actions">
-          <a className="hint-action primary" href={`#/conflicts/decide/${encodeURIComponent(theme.ownKey)}`}>
-            {t.decide.button}
-          </a>
+          {/* Deciding again before the re-check would add a second sentence. */}
+          {!theme.rechecking && (
+            <a className="hint-action primary" href={`#/conflicts/decide/${encodeURIComponent(theme.ownKey)}`}>
+              {t.decide.button}
+            </a>
+          )}
           <a className="hint-action" href={`#/c/${encodeURIComponent(theme.ownId)}`}>
             {t.openRule}
           </a>

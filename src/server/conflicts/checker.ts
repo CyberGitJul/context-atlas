@@ -15,6 +15,8 @@ export interface ConflictChecker {
   /** Queues a check for every active plugin skill whose pair hash changed; due skills in `first` go ahead, in that order. */
   schedule(components: Component[], first?: string[]): Promise<void>;
   view(components: Component[]): Promise<ConflictsView>;
+  /** A precedence sentence was saved into this rule: its theme shows as re-checking until its skills are checked again. */
+  decided(ownKey: string): void;
 }
 
 export interface CheckerDeps {
@@ -96,6 +98,8 @@ function pairPrompt(own: OwnText[], skill: Component, skillText: string): string
 export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
   const now = deps.now ?? (() => new Date().toISOString());
   let running: string | null = null;
+  /** Rules a sentence was saved into, until their skills are checked on the new text (in memory only). */
+  const decidedKeys = new Set<string>();
 
   async function systemPrompt(prompts: PromptDirs): Promise<string> {
     const [prompt, addition] = await Promise.all([readPrompt(prompts, 'conflicts.md'), personalAddition(prompts)]);
@@ -168,11 +172,19 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
 
       const byOwn = new Map<string, ConflictFinding[]>();
       for (const f of findings.filter((x) => x.state === 'new')) byOwn.set(f.ownKey, [...(byOwn.get(f.ownKey) ?? []), f]);
+      const due = (skillId: string) => {
+        const p = deps.store.pair(skillId);
+        return !p || !!p.error || p.hash !== hashes?.get(skillId);
+      };
+      for (const key of decidedKeys) {
+        const skills = findings.filter((f) => f.ownKey === key).map((f) => f.skillId);
+        if (!hashes || !skills.some(due)) decidedKeys.delete(key);
+      }
       const themes: ConflictTheme[] = [...byOwn]
         .map(([ownKey, list]) => {
           const c = own.get(ownKey);
           const ownName = c && c.kind === 'instruction' ? c.name : ownKey;
-          return { ownKey, ownName, ownId: c?.id ?? null, minor: serious(list) === 0, findings: list.sort((a, b) => RANK[a.severity] - RANK[b.severity]) };
+          return { ownKey, ownName, ownId: c?.id ?? null, minor: serious(list) === 0, rechecking: decidedKeys.has(ownKey), findings: list.sort((a, b) => RANK[a.severity] - RANK[b.severity]) };
         })
         .sort((a, b) => serious(b.findings) - serious(a.findings) || confirmed(b.findings) - confirmed(a.findings) || a.ownName.localeCompare(b.ownName));
 
@@ -200,6 +212,10 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
         },
         aiOff: !deps.ai,
       };
+    },
+
+    decided(ownKey) {
+      decidedKeys.add(ownKey);
     },
   };
 }

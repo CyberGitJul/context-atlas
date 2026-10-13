@@ -40,6 +40,8 @@ export interface ConflictTheme {
   ownId: string | null;
   /** Only `low` findings: listed under "Minor". */
   minor: boolean;
+  /** A sentence was just saved into this rule and its skills are not yet checked on the new text. */
+  rechecking: boolean;
   findings: ConflictFinding[];
 }
 

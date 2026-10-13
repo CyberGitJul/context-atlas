@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { ConflictsView, ConflictTheme, DecideProposal, Winner } from '../../src/shared/conflicts';
 import { DiffView } from './DiffView';
 import { usePublishPage } from './PageContext';
@@ -12,10 +12,19 @@ const isSection = (ownKey: string) => ownKey.startsWith('CLAUDE.md#');
 /** The file the sentence goes into: CLAUDE.md for a section, else rules/<file>. */
 const targetOf = (ownKey: string) => (isSection(ownKey) ? 'CLAUDE.md' : ownKey);
 
+class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 async function post<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const json = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+  if (!res.ok) throw new HttpError(json.error ?? `HTTP ${res.status}`, res.status);
   return json;
 }
 
@@ -49,6 +58,15 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ commit: string | null; warning: string | null; queued: number | null } | null>(null);
   const elapsed = useElapsed(busy === 'write');
+  const step2 = useRef<HTMLHeadingElement>(null);
+  const savedNotice = useRef<HTMLParagraphElement>(null);
+  // Focus follows the result, so a screen reader reads what just appeared.
+  useEffect(() => {
+    if (proposal) step2.current?.focus();
+  }, [proposal]);
+  useEffect(() => {
+    if (saved) savedNotice.current?.focus();
+  }, [saved]);
 
   useEffect(() => {
     fetch('/api/conflicts?schedule=0')
@@ -98,7 +116,11 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
       );
       setSaved({ commit: res.commit, warning: res.warning, queued });
     } catch (e) {
-      setError((e as Error).message);
+      // The rule changed on disk since the sentence was written: that proposal can never be saved.
+      if (e instanceof HttpError && e.status === 409) {
+        setProposal(null);
+        setError(t.ruleChanged);
+      } else setError((e as Error).message);
     } finally {
       setBusy(null);
     }
@@ -183,7 +205,8 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
               </button>
               {busy === 'write' && (
                 <span className="status" role="status">
-                  {t.writing(elapsed)}
+                  {t.writing}
+                  <span aria-hidden="true"> {t.seconds(elapsed)}</span>
                 </span>
               )}
             </div>
@@ -197,7 +220,7 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
           {proposal && (
             <>
               <section className="decide-step" aria-labelledby={`${id}-s2`}>
-                <h2 id={`${id}-s2`}>
+                <h2 id={`${id}-s2`} ref={step2} tabIndex={-1}>
                   <span className="step-no" aria-hidden="true">
                     2
                   </span>
@@ -240,7 +263,7 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
                   </li>
                 </ul>
                 {saved ? (
-                  <p className="notice ok" role="status">
+                  <p className="notice ok" role="status" ref={savedNotice} tabIndex={-1}>
                     {t.saved(saved.commit?.slice(0, 7) ?? null)} {saved.queued === null ? t.recheckFailed : t.rechecking(saved.queued)} <a href="#/conflicts">{t.backToConflicts}</a>
                   </p>
                 ) : (

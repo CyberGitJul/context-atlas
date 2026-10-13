@@ -7,6 +7,8 @@ export const conflicts = {
   tabDeliberate: (n: number) => `Deliberate deviations (${n})`,
   stateNew: 'New',
   stateDeliberate: 'Deliberate',
+  stateRechecking: 'Re-checking',
+  recheckingNote: 'Your sentence is saved. Its skills are being checked again; the findings it covers then move to “Deliberate deviations”.',
   count: (findings: number, skills: number, high: number) => `${findings} ${findings === 1 ? 'finding' : 'findings'} in ${skills} ${skills === 1 ? 'skill' : 'skills'}${high ? `, ${high} high` : ''}`,
   covers: (findings: number, skills: number) => `covers ${findings} ${findings === 1 ? 'finding' : 'findings'} in ${skills} ${skills === 1 ? 'skill' : 'skills'}`,
   noPrecedence: 'No precedence stated.',
@@ -53,7 +55,8 @@ export const conflicts = {
     perSkillOwn: 'Your rule',
     perSkillSkill: 'The skill',
     write: 'Write the sentence',
-    writing: (s: number) => `Opus writes the sentence … ${s} s`,
+    writing: 'Opus writes the sentence …',
+    seconds: (s: number) => `${s} s`,
     step2: 'Sentence for your instructions',
     /** A CLAUDE.md section names its heading; a rule file is the whole file. */
     where: (file: string, section: string | null) => (section ? `${file} · section “${section}”` : file),
@@ -73,6 +76,7 @@ export const conflicts = {
     rechecking: (n: number) => `${n} ${n === 1 ? 'skill is' : 'skills are'} checked again in the background.`,
     recheckFailed: 'The re-check could not be queued. It runs on the next visit to Conflicts.',
     noTheme: 'Nothing to decide for this rule any more.',
+    ruleChanged: 'Your rule changed since the sentence was written. Write it again.',
     backToConflicts: 'Back to conflicts',
   },
 };

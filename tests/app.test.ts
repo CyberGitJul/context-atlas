@@ -65,7 +65,7 @@ describe('GET /api/conflicts', () => {
     const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
     return createApp({ ctx, ai: { cache, queue: null, events: createEventHub() }, allowedHosts: ['localhost'], conflicts });
   }
-  const stub = () => ({ schedule: vi.fn(async () => {}), view: vi.fn(async () => VIEW) });
+  const stub = () => ({ schedule: vi.fn(async () => {}), view: vi.fn(async () => VIEW), decided: vi.fn() });
 
   it("serves the checker's view and schedules the checks", async () => {
     const checker = stub();
@@ -90,7 +90,7 @@ describe('GET /api/conflicts', () => {
 
   it('the overview carries the conflicts hint from the checker', async () => {
     const theme = { ownKey: 'CLAUDE.md#Rule A', ownName: 'Rule A', ownId: 'instruction:user:CLAUDE.md#0', minor: false, findings: [{ skillName: 'superpowers:a' }] };
-    const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => ({ ...VIEW, themes: [theme] }) as ConflictsView) };
+    const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => ({ ...VIEW, themes: [theme] }) as ConflictsView), decided: vi.fn() };
     const overview = (await (await (await withChecker(checker)).request('/api/overview')).json()) as Overview;
     expect(overview.hints.find((h) => h.id === 'conflicts-open')).toMatchObject({ severity: 'warn', componentIds: ['instruction:user:CLAUDE.md#0'] });
   });
@@ -106,10 +106,11 @@ describe('GET /api/conflicts', () => {
       app.request('/api/conflicts/recheck', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
     it('queues the skills of a rule first', async () => {
-      const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => themed) };
+      const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => themed), decided: vi.fn() };
       const res = await recheck(await withChecker(checker), { ownKey: 'CLAUDE.md#Rule A' });
       expect(res.status).toBe(200);
       expect(checker.schedule).toHaveBeenCalledWith(expect.any(Array), ['s1', 's2', 's3']);
+      expect(checker.decided).toHaveBeenCalledWith('CLAUDE.md#Rule A');
       expect(((await res.json()) as { queued: string[] }).queued).toEqual(['superpowers:s1', 'superpowers:s2', 'superpowers:s3']);
     });
 
@@ -150,7 +151,7 @@ describe('POST /api/conflicts/propose', () => {
     before = ((await (await base.request(`/api/component?id=${encodeURIComponent(ownId)}`)).json()) as { text: string }).text;
     const finding = { ownKey: 'CLAUDE.md#Rule A', skillId: 'p:a', skillName: 'superpowers:a', title: 't', quoteOwn: 'Text one two three.', quoteSkill: 'Skill text.', situation: 's', unconfirmed: false };
     const view = { themes: opts.themes === false ? [] : [{ ownKey: 'CLAUDE.md#Rule A', ownName: 'Rule A', ownId, minor: false, findings: [finding] }], deliberate: [], progress: { total: 1, upToDate: 1, running: null, failed: [], lastCheck: null }, aiOff: false } as unknown as ConflictsView;
-    const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => view) };
+    const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => view), decided: vi.fn() };
     const app = createApp({
       ctx,
       ai: { cache, queue: null, events: createEventHub() },

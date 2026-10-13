@@ -343,6 +343,7 @@ button { font: inherit; color: inherit; }
 .conflicts .state .icon { width: 14px; height: 14px; }
 .conflicts .state-new { background: var(--warn-soft); color: var(--warn); }
 .conflicts .state-ok { background: var(--ok-soft); color: var(--ok); }
+.conflicts .state-rechecking { background: var(--track-soft); color: var(--track); }
 .conflicts .today { margin: 10px 0 8px; max-width: 80ch; }
 .conflicts .chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0 0 12px; }
 .conflicts .chips li { font: .85rem var(--mono); background: var(--track-soft); color: var(--track); padding: 2px 8px; border-radius: 4px; }
@@ -397,6 +398,7 @@ button { font: inherit; color: inherit; }
 .decide .crumb { margin: 0 0 6px; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
 .decide .crumb a { color: var(--track); }
 .decide-step { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--radius-box); padding: 16px 20px; margin: 14px 0; }
+.decide-step h2:focus:not(:focus-visible) { outline: none; }
 .decide-step h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 1.05rem; font-weight: 600; }
 .step-no { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--track); color: var(--surface); font-size: .8rem; font-weight: 600; }
 .decide .choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; min-width: 0; margin: 0; padding: 0; border: 0; }
