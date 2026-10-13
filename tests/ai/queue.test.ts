@@ -4,7 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Explanation } from '../../src/shared/model.js';
 import { createExplanationCache, defaultCacheFile } from '../../src/server/ai/cache.js';
-import { createExplainQueue, type QueueEvent } from '../../src/server/ai/queue.js';
+import { createExplainQueue, MAX_ATTEMPTS, type BackgroundTask, type QueueEvent } from '../../src/server/ai/queue.js';
 import { RouterBusyError, type ExplainJob } from '../../src/server/ai/router-client.js';
 
 const job = (hash: string): ExplainJob => ({ hash, kind: 'hook', name: hash, input: 'x' });
@@ -192,5 +192,69 @@ describe('explain queue', () => {
     expect(await exclusive).toBe(42);
     await idle(events);
     expect(log).toEqual(['start a', 'end a', 'user action', 'start b', 'end b']);
+  });
+});
+
+describe('background tasks', () => {
+  const task = (id: string, log: string[], fails = false): BackgroundTask => ({
+    id,
+    run: async () => {
+      if (fails) throw new Error(`boom ${id}`);
+      log.push(id);
+    },
+  });
+
+  it('runs background tasks after all pending explanation jobs', async () => {
+    const log: string[] = [];
+    const events: QueueEvent[] = [];
+    const queue = createExplainQueue({ client: { explain: async (j) => (log.push(j.hash), explanation(j.hash)) }, cache: await freshCache(), onEvent: (e) => events.push(e) });
+    queue.pause();
+    queue.enqueueTask(task('t1', log));
+    queue.enqueue([job('a'), job('b')]);
+    queue.resume();
+    await idle(events);
+    expect(log).toEqual(['a', 'b', 't1']);
+  });
+
+  it('queues a task id only once while it is pending', async () => {
+    const log: string[] = [];
+    const events: QueueEvent[] = [];
+    const queue = createExplainQueue({ client: { explain: async (j) => explanation(j.hash) }, cache: await freshCache(), onEvent: (e) => events.push(e) });
+    queue.pause();
+    queue.enqueueTask(task('t1', log));
+    queue.enqueueTask(task('t1', log));
+    queue.resume();
+    await idle(events);
+    expect(log).toEqual(['t1']);
+  });
+
+  it('retries a failing task and reports the last error once', async () => {
+    let attempts = 0;
+    const errors: string[] = [];
+    const events: QueueEvent[] = [];
+    const queue = createExplainQueue({ client: { explain: async (j) => explanation(j.hash) }, cache: await freshCache(), onEvent: (e) => events.push(e), sleep: async () => {} });
+    queue.enqueueTask({
+      id: 't1',
+      run: async () => {
+        attempts++;
+        throw new Error('boom t1');
+      },
+      fail: (e) => errors.push(e.message),
+    });
+    await idle(events);
+    expect(attempts).toBe(MAX_ATTEMPTS);
+    expect(errors).toEqual(['boom t1']);
+    expect(queue.state().failed).toBe(0);
+  });
+
+  it('lets a user call go before the next task', async () => {
+    const log: string[] = [];
+    const events: QueueEvent[] = [];
+    const queue = createExplainQueue({ client: { explain: async (j) => explanation(j.hash) }, cache: await freshCache(), onEvent: (e) => events.push(e) });
+    queue.enqueueTask({ id: 't1', run: async () => (await new Promise((r) => setTimeout(r, 5)), void log.push('t1')) });
+    queue.enqueueTask(task('t2', log));
+    await queue.runExclusive(async () => void log.push('user'));
+    await idle(events);
+    expect(log).toEqual(['t1', 'user', 't2']);
   });
 });

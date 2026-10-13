@@ -17,7 +17,7 @@ async function setup(withQueue: boolean) {
   const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
   await cache.load();
   const enqueued: ExplainJob[] = [];
-  const queue: ExplainQueue = { enqueue: (jobs) => void enqueued.push(...jobs), pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
+  const queue: ExplainQueue = { enqueue: (jobs) => void enqueued.push(...jobs), enqueueTask() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
   const backupRoot = await mkdtemp(path.join(tmpdir(), 'atlas-app-backup-'));
   const app = createApp({ ctx, ai: { cache, queue: withQueue ? queue : null, events: createEventHub() }, allowedHosts: ['localhost'], backupRoot, git: null });
   return { app, cache, enqueued };
@@ -114,7 +114,7 @@ describe('POST /api/component/action', () => {
     await cache.load();
     let exclusiveRuns = 0;
     const queue: ExplainQueue = {
-      enqueue() {}, pause() {}, resume() {},
+      enqueue() {}, enqueueTask() {}, pause() {}, resume() {},
       state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }),
       runExclusive: async (fn) => (exclusiveRuns++, fn()),
     };
@@ -240,7 +240,7 @@ describe('skill links', () => {
       await writeFile(file, (await readFile(file, 'utf8')).replace('Four five.', `Four five. Ablauf: Skill \`${pointer}\`.`));
       const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
       await cache.load();
-      const queue: ExplainQueue = { enqueue() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
+      const queue: ExplainQueue = { enqueue() {}, enqueueTask() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
       const client = { json: async <T,>(req: { model: string }) => ({ result: {} as T, model: req.model }) };
       const backupRoot = await mkdtemp(path.join(tmpdir(), 'atlas-app-backup-'));
       const app = createApp({ ctx, ai: { cache, queue, events: createEventHub() }, allowedHosts: ['localhost'], backupRoot, git: null, edit: { client, model: 'opus', promptsDir: path.join(process.cwd(), 'config', 'prompts') } });
@@ -314,7 +314,7 @@ describe('Align with skill', () => {
     await writeFile(file, (await readFile(file, 'utf8')).replace('Four five.', `Four five.\n\nProcedure: skill \`${pointer}\`.`));
     const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
     await cache.load();
-    const queue: ExplainQueue = { enqueue() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
+    const queue: ExplainQueue = { enqueue() {}, enqueueTask() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
     const prompts: string[] = [];
     const client = { json: async <T,>(req: { model: string; prompt: string }) => (prompts.push(req.prompt), { result: structuredClone(result) as T, model: req.model }) };
     const backupRoot = await mkdtemp(path.join(tmpdir(), 'atlas-app-backup-'));
@@ -390,7 +390,7 @@ describe('CLAUDE.md verdichten', () => {
     const ctx = await makeFixtureHome();
     const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
     await cache.load();
-    const queue: ExplainQueue = { enqueue() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
+    const queue: ExplainQueue = { enqueue() {}, enqueueTask() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: (fn) => fn() };
     const prompts: { prompt: string; system: string }[] = [];
     const client = {
       json: async <T,>(req: { model: string; prompt: string; system: string; schema: object }) => {
@@ -479,7 +479,7 @@ describe('chat', () => {
     const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
     await cache.load();
     let exclusive = 0;
-    const queue: ExplainQueue = { enqueue() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: async (fn) => (exclusive++, fn()) };
+    const queue: ExplainQueue = { enqueue() {}, enqueueTask() {}, pause() {}, resume() {}, state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }), runExclusive: async (fn) => (exclusive++, fn()) };
     const requests: ChatRequest[] = [];
     const client = {
       json: async <T,>(req: { model: string }) => ({ result: {} as T, model: req.model }),
