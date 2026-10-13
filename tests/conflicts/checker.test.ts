@@ -39,7 +39,7 @@ async function setup(opts: { result?: () => Result; ai?: boolean } = {}) {
   const prompts: string[] = [];
   const queue: ExplainQueue = {
     enqueue() {},
-    enqueueTask: (t) => void tasks.push(t),
+    enqueueTask: (t, o) => void (o?.front ? tasks.unshift(t) : tasks.push(t)),
     pause() {},
     resume() {},
     state: () => ({ pending: 0, running: false, failed: 0, failedHashes: [] }),
@@ -81,6 +81,16 @@ describe('conflict checker', () => {
     await s.runAll();
     await s.checker.schedule(await s.components());
     expect(s.tasks).toHaveLength(0);
+  });
+
+  it('schedule queues the first skills ahead of the others, in the given order', async () => {
+    const s = await setup();
+    const base = await s.components();
+    const skill = skillOf(base);
+    const [a, b, c] = ['a', 'b', 'c'].map((x) => ({ ...skill, id: `${skill.id}-${x}`, hash: `h${x}` }) as Component);
+    const components = [...base.filter((x) => x.id !== skill.id), a, b, c];
+    await s.checker.schedule(components, [c.id, b.id]);
+    expect(s.tasks.map((t) => t.id)).toEqual([`conflicts:${c.id}`, `conflicts:${b.id}`, `conflicts:${a.id}`]);
   });
 
   it('a changed own rule makes every pair due again', async () => {

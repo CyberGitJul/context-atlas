@@ -145,6 +145,21 @@ export function createApp(deps: AppDeps): Hono {
     return c.json(await deps.conflicts.view(scan.components));
   });
 
+  /** After a decision: the skills of that rule are checked again first, every other due pair behind them. */
+  app.post('/api/conflicts/recheck', async (c) => {
+    if (!deps.conflicts) return c.json({ error: aiOff() }, 503);
+    const body = (await c.req.json().catch(() => null)) as { ownKey?: unknown } | null;
+    if (typeof body?.ownKey !== 'string' || !body.ownKey) return c.json({ error: msg.app.request.ownKeyMissing }, 400);
+    const scan = await scanGlobal(deps.ctx);
+    const view = await deps.conflicts.view(scan.components);
+    const skills = new Map<string, string>();
+    for (const f of [...view.themes.flatMap((t) => t.findings), ...view.deliberate.flatMap((g) => g.findings)]) {
+      if (f.ownKey === body.ownKey && !skills.has(f.skillId)) skills.set(f.skillId, f.skillName);
+    }
+    await deps.conflicts.schedule(scan.components, [...skills.keys()]);
+    return c.json({ queued: [...skills.values()] });
+  });
+
   /** Other sources for comparison actions (masked, within budget). */
   const contextFor = (components: Component[], exceptId: string) => {
     const explained: Record<string, Explanation> = {};

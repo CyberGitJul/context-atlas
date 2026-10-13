@@ -12,8 +12,8 @@ import { normQuote, verifyFindings, type OwnText, type RawFinding } from './quot
 import type { ConflictStore } from './store.js';
 
 export interface ConflictChecker {
-  /** Queues a check for every active plugin skill whose pair hash changed. */
-  schedule(components: Component[]): Promise<void>;
+  /** Queues a check for every active plugin skill whose pair hash changed; due skills in `first` go ahead, in that order. */
+  schedule(components: Component[], first?: string[]): Promise<void>;
   view(components: Component[]): Promise<ConflictsView>;
 }
 
@@ -136,18 +136,26 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
   }
 
   return {
-    async schedule(components) {
+    async schedule(components, first = []) {
       const ai = deps.ai;
       if (!ai) return;
       const hashes = pairHashes(components, await systemPrompt(ai.prompts), ai.model);
-      for (const skill of pluginSkills(components)) {
-        if (deps.store.pair(skill.id)?.hash === hashes.get(skill.id)) continue;
-        ai.queue.enqueueTask({
-          id: `conflicts:${skill.id}`,
-          run: () => check(skill.id),
-          // The stored hash stays, so the pair is due again on the next page load.
-          fail: (e) => void deps.store.recordError(skill.id, e.message).then(deps.onChange, deps.onChange),
-        });
+      const due = pluginSkills(components).filter((skill) => deps.store.pair(skill.id)?.hash !== hashes.get(skill.id));
+      const enqueue = (skill: Component, front: boolean) =>
+        ai.queue.enqueueTask(
+          {
+            id: `conflicts:${skill.id}`,
+            run: () => check(skill.id),
+            // The stored hash stays, so the pair is due again on the next page load.
+            fail: (e) => void deps.store.recordError(skill.id, e.message).then(deps.onChange, deps.onChange),
+          },
+          { front },
+        );
+      for (const skill of due.filter((s) => !first.includes(s.id))) enqueue(skill, false);
+      // Backwards to the front, so they run in the order given.
+      for (const id of [...first].reverse()) {
+        const skill = due.find((s) => s.id === id);
+        if (skill) enqueue(skill, true);
       }
     },
 

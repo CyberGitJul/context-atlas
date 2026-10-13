@@ -228,6 +228,32 @@ describe('background tasks', () => {
     expect(log).toEqual(['t1']);
   });
 
+  it('a task queued with front runs before tasks queued earlier', async () => {
+    const log: string[] = [];
+    const events: QueueEvent[] = [];
+    const queue = createExplainQueue({ client: { explain: async (j) => explanation(j.hash) }, cache: await freshCache(), onEvent: (e) => events.push(e) });
+    queue.pause();
+    queue.enqueueTask(task('a', log));
+    queue.enqueueTask(task('b', log));
+    queue.enqueueTask(task('c', log), { front: true });
+    queue.resume();
+    await idle(events);
+    expect(log).toEqual(['c', 'a', 'b']);
+  });
+
+  it('front moves an already pending task forward instead of queuing it twice', async () => {
+    const log: string[] = [];
+    const events: QueueEvent[] = [];
+    const queue = createExplainQueue({ client: { explain: async (j) => explanation(j.hash) }, cache: await freshCache(), onEvent: (e) => events.push(e) });
+    queue.pause();
+    queue.enqueueTask(task('a', log));
+    queue.enqueueTask(task('b', log));
+    queue.enqueueTask(task('b', log), { front: true });
+    queue.resume();
+    await idle(events);
+    expect(log).toEqual(['b', 'a']);
+  });
+
   it('retries a failing task and reports the last error once', async () => {
     let attempts = 0;
     const errors: string[] = [];

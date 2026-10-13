@@ -19,7 +19,8 @@ export interface BackgroundTask {
 
 export interface ExplainQueue {
   enqueue(jobs: ExplainJob[]): void;
-  enqueueTask(task: BackgroundTask): void;
+  /** `front`: ahead of every waiting task; a waiting task with the same id moves there instead of running twice. */
+  enqueueTask(task: BackgroundTask, opts?: { front?: boolean }): void;
   pause(): void;
   resume(): void;
   state(): QueueState;
@@ -125,8 +126,12 @@ export function createExplainQueue(deps: Deps): ExplainQueue {
       emitState();
       void pump();
     },
-    enqueueTask(task) {
-      if (!tasks.some((t) => t.id === task.id)) tasks.push(task);
+    enqueueTask(task, opts) {
+      if (opts?.front) {
+        const waiting = tasks.findIndex((t) => t.id === task.id);
+        if (waiting >= 0) tasks.splice(waiting, 1);
+        tasks.unshift(task);
+      } else if (!tasks.some((t) => t.id === task.id)) tasks.push(task);
       void pump();
     },
     pause() {

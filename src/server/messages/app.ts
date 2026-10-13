@@ -21,6 +21,7 @@ export const app = {
     pairFieldsMissing: 'id, before, after, skillId, skillBefore and skillAfter are missing.',
     skillFieldsMissing: 'name, description and body are missing.',
     fileSectionsMissing: 'file and sections are missing.',
+    ownKeyMissing: 'ownKey is missing.',
   },
   component: {
     notFound: 'Component not found. Reload the overview.',

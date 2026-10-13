@@ -95,6 +95,35 @@ describe('GET /api/conflicts', () => {
     expect(overview.hints.find((h) => h.id === 'conflicts-open')).toMatchObject({ severity: 'warn', componentIds: ['instruction:user:CLAUDE.md#0'] });
   });
 
+  describe('POST /api/conflicts/recheck', () => {
+    const finding = (skill: string) => ({ ownKey: 'CLAUDE.md#Rule A', skillId: skill, skillName: `superpowers:${skill}` });
+    const themed = {
+      ...VIEW,
+      themes: [{ ownKey: 'CLAUDE.md#Rule A', ownName: 'Rule A', ownId: 'instruction:user:CLAUDE.md#0', minor: false, findings: [finding('s1'), finding('s2'), finding('s1')] }],
+      deliberate: [{ settledBy: 'own', quote: 'q', findings: [finding('s3'), { ...finding('s9'), ownKey: 'CLAUDE.md#Other' }] }],
+    } as unknown as ConflictsView;
+    const recheck = (app: Awaited<ReturnType<typeof withChecker>>, body: unknown) =>
+      app.request('/api/conflicts/recheck', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+
+    it('queues the skills of a rule first', async () => {
+      const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => themed) };
+      const res = await recheck(await withChecker(checker), { ownKey: 'CLAUDE.md#Rule A' });
+      expect(res.status).toBe(200);
+      expect(checker.schedule).toHaveBeenCalledWith(expect.any(Array), ['s1', 's2', 's3']);
+      expect(((await res.json()) as { queued: string[] }).queued).toEqual(['superpowers:s1', 'superpowers:s2', 'superpowers:s3']);
+    });
+
+    it('answers 503 without a checker', async () => {
+      expect((await recheck(await withChecker(null), { ownKey: 'CLAUDE.md#Rule A' })).status).toBe(503);
+    });
+
+    it('answers 400 without ownKey', async () => {
+      const checker = stub();
+      expect((await recheck(await withChecker(checker), {})).status).toBe(400);
+      expect(checker.schedule).not.toHaveBeenCalled();
+    });
+  });
+
   it('answers an empty view with aiOff when there is no checker', async () => {
     const app = await withChecker(null);
     expect(await (await app.request('/api/conflicts')).json()).toEqual({ themes: [], deliberate: [], progress: { total: 0, upToDate: 0, running: null, failed: [], lastCheck: null }, aiOff: true });
