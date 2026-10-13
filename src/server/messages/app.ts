@@ -81,6 +81,14 @@ export const app = {
     providerFailed: (reason: string) => `The AI provider did not answer (${reason}). Try again later.`,
     fileChanged: 'The CLAUDE.md was changed in the meantime. Create the proposal again.',
   },
+  decide: {
+    noTheme: 'Nothing to decide for this rule any more. Reload the conflicts.',
+    badWinners: 'Decide every skill of this rule, each for your rule or the skill.',
+    incomplete: 'The AI response is incomplete. Try again.',
+    headingChanged: 'The proposal changed the heading of the rule. Try again.',
+    frontmatterChanged: 'The proposal changed the frontmatter of the rule file. Try again.',
+    providerFailed: (reason: string) => `The AI provider did not answer (${reason}). Try again later.`,
+  },
   file: {
     readOnlyMode: 'Read-only mode: saving is off.',
     notSaved: (reason: string) => `Not saved: ${reason}`,

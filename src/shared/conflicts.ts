@@ -57,3 +57,22 @@ export interface ConflictsView {
   /** No AI provider: stored results only, nothing is checked. */
   aiOff: boolean;
 }
+
+/** Who wins for one skill of a theme: the own rule or the skill. */
+export type Winner = 'own' | 'skill';
+
+/** A precedence sentence written into the rule, for review before it is saved. */
+export interface DecideProposal {
+  ownId: string;
+  ownName: string;
+  /** ~/… path of the file the rule lives in. */
+  file: string | null;
+  before: string;
+  after: string;
+  changes: string[];
+  /** Pointer lines the proposal dropped and the app put back. */
+  restored: string[];
+  /** Words added to the instructions (negative when shorter). */
+  wordsDelta: number;
+  model: string;
+}

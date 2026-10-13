@@ -130,6 +130,89 @@ describe('GET /api/conflicts', () => {
   });
 });
 
+describe('POST /api/conflicts/propose', () => {
+  const RULE_A = '## Rule A\nText one two three.\n\n';
+  type Opts = { claudeMd?: string; after?: (before: string) => string; themes?: boolean; edit?: boolean };
+  async function propose(body: unknown, opts: Opts = {}) {
+    const ctx = await makeFixtureHome();
+    if (opts.claudeMd) await writeFile(path.join(ctx.claudeDir, 'CLAUDE.md'), opts.claudeMd);
+    const cache = createExplanationCache(path.join(await mkdtemp(path.join(tmpdir(), 'atlas-app-')), 'e.json'));
+    const calls: { prompt: string; system: string }[] = [];
+    let before = '';
+    const client = {
+      json: async <T,>(req: { model: string; prompt: string; system: string }) => (
+        calls.push(req), { result: { after: (opts.after ?? ((b: string) => `${b.trimEnd()}\n- Precedence: superpowers:a wins.\n`))(before), changes: ['Added precedence.', 3] } as T, model: req.model }
+      ),
+    };
+    const base = createApp({ ctx, ai: { cache, queue: null, events: createEventHub() }, allowedHosts: ['localhost'] });
+    const overview = (await (await base.request('/api/overview')).json()) as Overview;
+    const ownId = overview.components.find((c) => c.kind === 'instruction' && c.name === 'Rule A')!.id;
+    before = ((await (await base.request(`/api/component?id=${encodeURIComponent(ownId)}`)).json()) as { text: string }).text;
+    const finding = { ownKey: 'CLAUDE.md#Rule A', skillId: 'p:a', skillName: 'superpowers:a', title: 't', quoteOwn: 'Text one two three.', quoteSkill: 'Skill text.', situation: 's', unconfirmed: false };
+    const view = { themes: opts.themes === false ? [] : [{ ownKey: 'CLAUDE.md#Rule A', ownName: 'Rule A', ownId, minor: false, findings: [finding] }], deliberate: [], progress: { total: 1, upToDate: 1, running: null, failed: [], lastCheck: null }, aiOff: false } as unknown as ConflictsView;
+    const checker = { schedule: vi.fn(async () => {}), view: vi.fn(async () => view) };
+    const app = createApp({
+      ctx,
+      ai: { cache, queue: null, events: createEventHub() },
+      allowedHosts: ['localhost'],
+      backupRoot: await mkdtemp(path.join(tmpdir(), 'atlas-app-backup-')),
+      git: null,
+      conflicts: checker,
+      edit: opts.edit === false ? null : { client, model: 'opus', promptsDir: path.join(process.cwd(), 'config', 'prompts') },
+    });
+    const res = await app.request('/api/conflicts/propose', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    return { res, json: (await res.json()) as Record<string, unknown>, calls, ownId, before };
+  }
+  const SKILLS_WIN = { ownKey: 'CLAUDE.md#Rule A', winners: { 'superpowers:a': 'skill' } };
+
+  it('proposes the section with the sentence, its word cost and the model', async () => {
+    const { res, json, calls, ownId, before } = await propose(SKILLS_WIN);
+    expect(res.status).toBe(200);
+    expect(before).toBe(RULE_A);
+    expect(json).toMatchObject({ ownId, ownName: 'Rule A', before, after: expect.stringContaining('- Precedence: superpowers:a wins.'), changes: ['Added precedence.'], restored: [], wordsDelta: 4, model: 'opus' });
+    expect(json.file).toBe('~/.claude/CLAUDE.md');
+    expect(calls).toHaveLength(1);
+    expect(calls[0].prompt).toContain('- superpowers:a: SKILL wins');
+    expect(calls[0].system).toContain('precedence');
+  });
+
+  it('rejects a proposal that renamed the heading (502)', async () => {
+    const { res } = await propose(SKILLS_WIN, { after: (b) => b.replace('## Rule A', '## Rule X') });
+    expect(res.status).toBe(502);
+  });
+
+  it('puts a dropped pointer line back and reports it', async () => {
+    const claudeMd = '# Global\n\n## Rule A\nText one two three.\n\nProcedure: skill `good-skill`\n\n## Rule B\nFour five.\n';
+    const { res, json } = await propose(SKILLS_WIN, { claudeMd, after: () => '## Rule A\nText one two three.\n- Precedence: superpowers:a wins.\n' });
+    expect(res.status).toBe(200);
+    expect(json.after).toContain('Procedure: skill `good-skill`');
+    expect(json.restored).toEqual(['good-skill']);
+  });
+
+  it('answers 404 for a rule without open findings, and sends nothing', async () => {
+    const { res, calls } = await propose(SKILLS_WIN, { themes: false });
+    expect(res.status).toBe(404);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('answers 400 for incomplete winners, and sends nothing', async () => {
+    const { res, calls } = await propose({ ownKey: 'CLAUDE.md#Rule A', winners: {} });
+    expect(res.status).toBe(400);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('answers 409 when the section holds a secret, and sends nothing', async () => {
+    const secret = ['ghp', 'abcdefghijklmnopqrstuvwxyz0123456789'].join('_');
+    const { res, calls } = await propose(SKILLS_WIN, { claudeMd: `# Global\n\n## Rule A\nText one two three. Token ${secret}\n\n## Rule B\nFour five.\n` });
+    expect(res.status).toBe(409);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('answers 503 without AI', async () => {
+    expect((await propose(SKILLS_WIN, { edit: false })).res.status).toBe(503);
+  });
+});
+
 describe('request guard', () => {
   it('rejects requests with a foreign Host header (DNS rebinding)', async () => {
     const { app } = await setup(true);

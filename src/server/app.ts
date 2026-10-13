@@ -25,10 +25,11 @@ import { genericPromptPath, personalAddition, personalPromptPath, readPrompt, wi
 import { checkCondensed, PROPOSE_SCHEMA, proposePrompt, REPAIR_SCHEMA, repairPrompt, type Section, splitSections, TEST_SCHEMA, testPrompt, words } from './ai/condense.js';
 import type { ExplainQueue } from './ai/queue.js';
 import type { ConflictChecker } from './conflicts/checker.js';
-import type { ConflictsView } from '../shared/conflicts.js';
+import type { ConflictsView, DecideProposal, Winner } from '../shared/conflicts.js';
+import { DECIDE_SCHEMA, decidePrompt, decideProblem, themeSkills, winnersProblem } from './conflicts/decide.js';
 import type { EventHub } from './events.js';
 import { computeHints, conflictSummary } from './hints.js';
-import type { ScanContext } from './scan/context.js';
+import { wordCount, type ScanContext } from './scan/context.js';
 import type { ClaudeGit } from './edit/claude-git.js';
 import { loadComponentText, resolveEditable } from './edit/resolve.js';
 import { saveComponentPair, saveComponentText } from './edit/save.js';
@@ -158,6 +159,46 @@ export function createApp(deps: AppDeps): Hono {
     }
     await deps.conflicts.schedule(scan.components, [...skills.keys()]);
     return c.json({ queued: [...skills.values()] });
+  });
+
+  /** Step 2 of "Decide precedence…": Opus writes the sentence for the chosen winners into the rule; nothing is saved. */
+  app.post('/api/conflicts/propose', async (c) => {
+    const m = msg.app.decide;
+    if (!deps.edit || !deps.conflicts) return c.json({ error: aiOff() }, 503);
+    const body = (await c.req.json().catch(() => null)) as { ownKey?: unknown; winners?: unknown } | null;
+    const scan = await scanGlobal(deps.ctx);
+    const theme = (await deps.conflicts.view(scan.components)).themes.find((t) => t.ownKey === body?.ownKey);
+    const component = theme?.ownId ? scan.components.find((x) => x.id === theme.ownId) : undefined;
+    if (!theme || !component) return c.json({ error: m.noTheme }, 404);
+    if (winnersProblem(themeSkills(theme.findings), body?.winners)) return c.json({ error: m.badWinners }, 400);
+    const winners = body!.winners as Record<string, Winner>;
+    const current = await loadComponentText(component, deps.ctx);
+    // A proposal built from masked text would write *** over the secret on save.
+    if (current.hasSecrets || redact(current.text) !== current.text) return c.json({ error: msg.app.action.secrets }, 409);
+    if (!current.editable) return c.json({ error: current.readOnlyReason ?? msg.app.component.notEditable }, 403);
+    const edit = deps.edit;
+    const run = async () => edit.client.json<{ after?: unknown; changes?: unknown }>({ prompt: decidePrompt(current.text, theme.findings, winners), system: await promptWithAddition('decide'), schema: DECIDE_SCHEMA, model: edit.model, effort: 'high' });
+    try {
+      const { result, model } = queue ? await queue.runExclusive(run) : await run();
+      if (typeof result?.after !== 'string') return c.json({ error: m.incomplete }, 502);
+      const kept = keepPointers(current.text, result.after);
+      const problem = decideProblem(current.text, kept.text);
+      if (problem) return c.json({ error: problem === 'heading' ? m.headingChanged : m.frontmatterChanged }, 502);
+      const proposal: DecideProposal = {
+        ownId: component.id,
+        ownName: theme.ownName,
+        file: current.file && tildePath(current.file),
+        before: current.text,
+        after: kept.text,
+        changes: strings(result.changes),
+        restored: kept.restored,
+        wordsDelta: wordCount(kept.text) - wordCount(current.text),
+        model,
+      };
+      return c.json(proposal);
+    } catch (e) {
+      return c.json({ error: m.providerFailed((e as Error).message) }, 502);
+    }
   });
 
   /** Other sources for comparison actions (masked, within budget). */
