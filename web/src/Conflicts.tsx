@@ -41,8 +41,9 @@ export function ConflictsPage() {
   const [tab, setTab] = useState<Tab>('open');
   const tabs = useRef<Record<Tab, HTMLButtonElement | null>>({ open: null, deliberate: null });
 
-  const load = useCallback(() => {
-    fetch('/api/conflicts')
+  /** The first load schedules due checks; refreshes on change events only read (else a failing check would loop). */
+  const load = useCallback((schedule: boolean) => {
+    fetch(schedule ? '/api/conflicts' : '/api/conflicts?schedule=0')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(
         (v: ConflictsView) => {
@@ -55,9 +56,9 @@ export function ConflictsPage() {
 
   // Each check that starts or ends sends a `conflicts` event; the page then reloads the view.
   useEffect(() => {
-    load();
+    load(true);
     const source = new EventSource('/api/events');
-    source.addEventListener('conflicts', load);
+    source.addEventListener('conflicts', () => load(false));
     return () => source.close();
   }, [load]);
 

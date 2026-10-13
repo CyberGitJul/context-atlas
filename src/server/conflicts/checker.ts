@@ -112,12 +112,15 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
     const components = (await scanGlobal(deps.ctx)).components;
     const skill = pluginSkills(components).find((s) => s.id === skillId);
     if (!skill) return;
+    const system = await systemPrompt(ai.prompts);
+    const hash = pairHashes(components, system, ai.model).get(skill.id)!;
+    // Queued again while it was running (a page load during the check): it is up to date now, no second paid call.
+    const done = deps.store.pair(skill.id);
+    if (done && !done.error && done.hash === hash) return;
     const skillName = skillNameOf(skill);
     running = skillName;
     deps.onChange();
     try {
-      const system = await systemPrompt(ai.prompts);
-      const hash = pairHashes(components, system, ai.model).get(skill.id)!;
       const own: OwnText[] = await Promise.all(ownSources(components).map(async (c) => ({ key: sourceKeyOf(c)!, text: (await loadComponentText(c, deps.ctx)).text })));
       const skillText = (await loadComponentText(skill, deps.ctx)).text;
       const { result } = await ai.client.json<{ summary?: string; findings?: RawFinding[] }>({ prompt: pairPrompt(own, skill, skillText), system, schema: CONFLICTS_SCHEMA, model: ai.model, effort: 'high' });

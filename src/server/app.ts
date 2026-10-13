@@ -134,11 +134,14 @@ export function createApp(deps: AppDeps): Hono {
     return c.json(overview);
   });
 
-  /** Where own instructions collide with plugin skills; scheduling is cheap, checks run in the queue. */
+  /**
+   * Where own instructions collide with plugin skills; scheduling is cheap, checks run in the queue.
+   * `?schedule=0` only reads: the page refreshes that way on every change event, which must not queue anything.
+   */
   app.get('/api/conflicts', async (c) => {
     if (!deps.conflicts) return c.json(NO_CONFLICTS);
     const scan = await scanGlobal(deps.ctx);
-    await deps.conflicts.schedule(scan.components);
+    if (c.req.query('schedule') !== '0') await deps.conflicts.schedule(scan.components);
     return c.json(await deps.conflicts.view(scan.components));
   });
 

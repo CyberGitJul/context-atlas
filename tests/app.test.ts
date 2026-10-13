@@ -74,6 +74,13 @@ describe('GET /api/conflicts', () => {
     expect(checker.schedule).toHaveBeenCalledTimes(1);
   });
 
+  it('a view-only refresh (?schedule=0) does not schedule', async () => {
+    const checker = stub();
+    const app = await withChecker(checker);
+    expect(await (await app.request('/api/conflicts?schedule=0')).json()).toEqual(VIEW);
+    expect(checker.schedule).not.toHaveBeenCalled();
+  });
+
   it('/api/overview schedules the checks too', async () => {
     const checker = stub();
     const app = await withChecker(checker);

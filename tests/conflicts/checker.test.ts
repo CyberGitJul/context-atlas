@@ -4,9 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { Component } from '../../src/shared/model.js';
-import type { BackgroundTask, ExplainQueue } from '../../src/server/ai/queue.js';
+import { createExplanationCache } from '../../src/server/ai/cache.js';
+import { createExplainQueue, type BackgroundTask, type ExplainQueue } from '../../src/server/ai/queue.js';
 import type { JsonRequest } from '../../src/server/ai/router-client.js';
-import { createConflictChecker, pluginSkills, skillNameOf } from '../../src/server/conflicts/checker.js';
+import { createConflictChecker, pluginSkills, skillNameOf, type ConflictChecker } from '../../src/server/conflicts/checker.js';
 import type { RawFinding } from '../../src/server/conflicts/quotes.js';
 import { createConflictStore } from '../../src/server/conflicts/store.js';
 import { scanGlobal } from '../../src/server/scan/index.js';
@@ -161,5 +162,36 @@ describe('conflict checker', () => {
     await s.checker.schedule(await s.components());
     expect(s.tasks).toHaveLength(0);
     expect((await s.checker.view(await s.components())).aiOff).toBe(true);
+  });
+});
+
+describe('conflict checker on the real queue', () => {
+  it('runs a due check once even when every change reschedules, as the open page does', async () => {
+    const ctx = await makeFixtureHome();
+    const dir = await mkdtemp(path.join(tmpdir(), 'atlas-conflicts-'));
+    const store = createConflictStore(path.join(dir, 'conflicts.json'));
+    await store.load();
+    const cache = createExplanationCache(path.join(dir, 'e.json'));
+    await cache.load();
+    const queue = createExplainQueue({ client: { explain: async () => Promise.reject(new Error('unused')) }, cache, onEvent: () => {}, sleep: async () => {} });
+    let calls = 0;
+    const client = {
+      json: async <T>() => {
+        calls++;
+        await new Promise((r) => setTimeout(r, 20));
+        return { result: { summary: '', findings: [] } as T, model: 'opus' };
+      },
+    };
+    const components = async () => (await scanGlobal(ctx)).components;
+    const checker: ConflictChecker = createConflictChecker({
+      ctx,
+      store,
+      ai: { queue, client, model: 'opus', prompts: { generic: PROMPTS_DIR } },
+      // Like the open Conflicts page before the fix: every change event reloads and schedules again.
+      onChange: () => void components().then((c) => checker.schedule(c)),
+    });
+    await checker.schedule(await components());
+    await new Promise((r) => setTimeout(r, 400));
+    expect(calls).toBe(pluginSkills(await components()).length);
   });
 });
