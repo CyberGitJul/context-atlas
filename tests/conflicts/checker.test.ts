@@ -195,3 +195,23 @@ describe('conflict checker on the real queue', () => {
     expect(calls).toBe(pluginSkills(await components()).length);
   });
 });
+
+describe('conflict view and unconfirmed findings', () => {
+  it('ranks themes and sets minor by confirmed findings only', async () => {
+    let result: Result = { summary: '', findings: [FINDING] };
+    const s = await setup({ result: () => result });
+    await s.checker.schedule(await s.components());
+    await s.runAll();
+    // A later run (own rules changed) quotes another skill passage at low severity: the medium one is now unconfirmed.
+    result = { summary: '', findings: [{ ...FINDING, severity: 'low', title: 'Other wording', quoteSkill: 'name: demo-skill' }] };
+    await appendFile(path.join(s.ctx.claudeDir, 'rules', 'style.md'), '- New.\n');
+    await s.checker.schedule(await s.components());
+    await s.runAll();
+    const theme = (await s.checker.view(await s.components())).themes[0];
+    expect(theme.findings.map((f) => [f.title, f.unconfirmed])).toEqual([
+      ['Demo tension', true],
+      ['Other wording', false],
+    ]);
+    expect(theme.minor).toBe(true);
+  });
+});

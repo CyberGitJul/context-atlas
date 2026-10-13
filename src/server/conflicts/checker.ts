@@ -72,7 +72,9 @@ export const CONFLICTS_SCHEMA = {
 };
 
 const RANK = { high: 0, medium: 1, low: 2 } as const;
-const serious = (findings: ConflictFinding[]) => findings.filter((f) => f.severity !== 'low').length;
+/** Confirmed findings with severity medium or high; unconfirmed ones are folded away and do not rank a theme. */
+const serious = (findings: ConflictFinding[]) => findings.filter((f) => !f.unconfirmed && f.severity !== 'low').length;
+const confirmed = (findings: ConflictFinding[]) => findings.filter((f) => !f.unconfirmed).length;
 
 /** Every own instruction under its key in square brackets, then the skill; all masked. */
 function pairPrompt(own: OwnText[], skill: Component, skillText: string): string {
@@ -164,7 +166,7 @@ export function createConflictChecker(deps: CheckerDeps): ConflictChecker {
           const ownName = c && c.kind === 'instruction' ? c.name : ownKey;
           return { ownKey, ownName, ownId: c?.id ?? null, minor: serious(list) === 0, findings: list.sort((a, b) => RANK[a.severity] - RANK[b.severity]) };
         })
-        .sort((a, b) => serious(b.findings) - serious(a.findings) || b.findings.length - a.findings.length || a.ownName.localeCompare(b.ownName));
+        .sort((a, b) => serious(b.findings) - serious(a.findings) || confirmed(b.findings) - confirmed(a.findings) || a.ownName.localeCompare(b.ownName));
 
       const groups = new Map<string, DeliberateGroup>();
       for (const f of findings) {

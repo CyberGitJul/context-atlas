@@ -98,6 +98,20 @@ describe('conflicts hint', () => {
     expect(hint('conflicts-open', hintsFor({ conflicts: { rules: 0, findings: 0, plugins: [], componentIds: [] } }))).toBeUndefined();
   });
 
+  it('conflictSummary leaves out findings not confirmed by the latest check', () => {
+    const f = (skillName: string, unconfirmed: boolean) => ({ skillName, unconfirmed }) as ConflictFinding;
+    const view: ConflictsView = {
+      themes: [
+        { ownKey: 'CLAUDE.md#A', ownName: 'A', ownId: 'id-a', minor: false, findings: [f('superpowers:a', false), f('superpowers:b', true)] },
+        { ownKey: 'CLAUDE.md#B', ownName: 'B', ownId: 'id-b', minor: true, findings: [f('other:c', true)] },
+      ],
+      deliberate: [],
+      progress: { total: 2, upToDate: 2, running: null, failed: [], lastCheck: null },
+      aiOff: false,
+    };
+    expect(conflictSummary(view)).toEqual({ rules: 1, findings: 1, plugins: ['superpowers'], componentIds: ['id-a'] });
+  });
+
   it('conflictSummary counts themes, findings and plugins', () => {
     const f = (skillName: string) => ({ skillName }) as ConflictFinding;
     const view: ConflictsView = {

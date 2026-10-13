@@ -376,6 +376,11 @@ button { font: inherit; color: inherit; }
 .conflicts .rule-quote { margin: 12px 0 4px; padding: 10px 14px; border-left: 3px solid var(--ok); border-radius: 0 var(--radius-card) var(--radius-card) 0; background: var(--ok-soft); }
 .conflicts .since { margin: 0 0 10px; color: var(--muted); font-size: .85rem; }
 .conflicts-minor { margin: 22px 0 10px; color: var(--muted); font-size: 1rem; font-weight: 600; }
+/* Findings the latest check did not confirm: folded away, not counted. */
+.conflicts .conflict-unconfirmed { border-top: 1px solid var(--rule); }
+.conflicts .conflict-unconfirmed > summary, .conflict-unconfirmed-section > summary { min-height: 32px; padding: 8px 0; color: var(--muted); cursor: pointer; }
+.conflict-unconfirmed-section { margin-top: 22px; }
+.conflict-unconfirmed-section > summary { font-weight: 600; }
 @media (max-width: 720px) {
   .conflicts .conflict-finding summary { flex-wrap: wrap; row-gap: 2px; }
   .conflicts .conflict-finding .ftitle { flex-basis: 100%; padding-left: 17px; }

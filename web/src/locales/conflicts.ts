@@ -23,6 +23,8 @@ export const conflicts = {
   types: { contradiction: 'Contradiction', tension: 'Unclear who wins', duplicate: 'Duplicate' },
   severity: { high: 'high', medium: 'medium', low: 'low' },
   unconfirmed: 'Not confirmed by the latest check.',
+  unconfirmedGroup: (n: number) => `Not confirmed by the latest check (${n})`,
+  unconfirmedSection: (n: number) => `Rules with findings the latest check did not confirm (${n})`,
   skillChanged: (date: string) => `Skill text changed on ${date}, still covered by your sentence.`,
   noneOpen: 'Nothing needs a decision.',
   noneDeliberate: 'No deliberate deviations yet.',

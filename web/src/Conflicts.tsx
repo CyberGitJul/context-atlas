@@ -20,6 +20,8 @@ const firstSentence = (s: string) => s.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? s;
 /** A rule's name from its key: the heading of a CLAUDE.md section, else rules/<file>. */
 const ruleName = (ownKey: string) => (ownKey.startsWith('CLAUDE.md#') ? ownKey.slice('CLAUDE.md#'.length) : ownKey);
 const skillsOf = (findings: ConflictFinding[]) => [...new Set(findings.map((f) => f.skillName))];
+/** Findings the latest check confirmed; the others are folded away and not counted. */
+const confirmedOf = (findings: ConflictFinding[]) => findings.filter((f) => !f.unconfirmed);
 
 function progressText(view: ConflictsView): string {
   const t = texts.conflicts;
@@ -72,10 +74,11 @@ export function ConflictsPage() {
     tabs.current[next]?.focus();
   };
 
-  const themes = view?.themes ?? [];
+  const themes = (view?.themes ?? []).filter((x) => confirmedOf(x.findings).length);
+  const unconfirmedThemes = (view?.themes ?? []).filter((x) => !confirmedOf(x.findings).length);
   const major = themes.filter((x) => !x.minor);
   const minor = themes.filter((x) => x.minor);
-  const openFindings = themes.reduce((n, x) => n + x.findings.length, 0);
+  const openFindings = themes.reduce((n, x) => n + confirmedOf(x.findings).length, 0);
   const deliberateFindings = view?.deliberate.reduce((n, g) => n + g.findings.length, 0) ?? 0;
   const labels: Record<Tab, string> = { open: t.tabOpen(themes.length, openFindings), deliberate: t.tabDeliberate(deliberateFindings) };
 
@@ -136,6 +139,14 @@ export function ConflictsPage() {
                 ))}
               </>
             )}
+            {unconfirmedThemes.length > 0 && (
+              <details className="conflict-unconfirmed-section">
+                <summary>{t.unconfirmedSection(unconfirmedThemes.length)}</summary>
+                {unconfirmedThemes.map((x) => (
+                  <ThemeCard key={x.ownKey} theme={x} />
+                ))}
+              </details>
+            )}
           </div>
 
           <div id="conflicts-panel-deliberate" role="tabpanel" aria-labelledby="conflicts-tab-deliberate" hidden={tab !== 'deliberate'}>
@@ -150,12 +161,18 @@ export function ConflictsPage() {
   );
 }
 
-/** All open findings of one own rule. */
+/**
+ * All open findings of one own rule. Findings the latest check did not confirm are folded away below the confirmed
+ * ones; a rule with no confirmed finding shows them directly (it sits in the folded section at the end).
+ */
 function ThemeCard({ theme }: { theme: ConflictTheme }) {
   const t = texts.conflicts;
   const id = useId();
-  const skills = skillsOf(theme.findings);
-  const high = theme.findings.filter((f) => f.severity === 'high').length;
+  const confirmed = confirmedOf(theme.findings);
+  const shown = confirmed.length ? confirmed : theme.findings;
+  const folded = confirmed.length ? theme.findings.filter((f) => f.unconfirmed) : [];
+  const skills = skillsOf(shown);
+  const high = shown.filter((f) => f.severity === 'high').length;
   return (
     <section className="theme" aria-labelledby={id}>
       <header className="theme-head">
@@ -164,10 +181,10 @@ function ThemeCard({ theme }: { theme: ConflictTheme }) {
           {t.stateNew}
         </span>
         <h2 id={id}>{theme.ownName}</h2>
-        <span className="count">{t.count(theme.findings.length, skills.length, high)}</span>
+        <span className="count">{t.count(shown.length, skills.length, high)}</span>
       </header>
       <p className="today">
-        <strong>{t.noPrecedence}</strong> {firstSentence(theme.findings[0]?.whoWinsToday ?? '')}
+        <strong>{t.noPrecedence}</strong> {firstSentence(shown[0]?.whoWinsToday ?? '')}
       </p>
       <ul className="chips">
         {skills.map((s) => (
@@ -182,10 +199,18 @@ function ThemeCard({ theme }: { theme: ConflictTheme }) {
         </p>
       )}
       <div className="conflict-findings">
-        {theme.findings.map((f) => (
+        {shown.map((f) => (
           <Finding key={f.key} finding={f} ownName={theme.ownName} />
         ))}
       </div>
+      {folded.length > 0 && (
+        <details className="conflict-unconfirmed">
+          <summary>{t.unconfirmedGroup(folded.length)}</summary>
+          {folded.map((f) => (
+            <Finding key={f.key} finding={f} ownName={theme.ownName} />
+          ))}
+        </details>
+      )}
     </section>
   );
 }
@@ -214,7 +239,7 @@ function DeliberateCard({ group }: { group: DeliberateGroup }) {
       </ul>
       <div className="conflict-findings">
         {group.findings.map((f) => (
-          <Finding key={f.key} finding={f} ownName={ruleName(f.ownKey)} />
+          <Finding key={f.key} finding={f} ownName={ruleName(f.ownKey)} noteUnconfirmed />
         ))}
       </div>
     </section>
@@ -222,7 +247,7 @@ function DeliberateCard({ group }: { group: DeliberateGroup }) {
 }
 
 /** One finding: both quotes side by side, when it bites and what Claude does today. */
-function Finding({ finding: f, ownName }: { finding: ConflictFinding; ownName: string }) {
+function Finding({ finding: f, ownName, noteUnconfirmed = false }: { finding: ConflictFinding; ownName: string; noteUnconfirmed?: boolean }) {
   const t = texts.conflicts;
   return (
     <details className="conflict-finding">
@@ -251,7 +276,7 @@ function Finding({ finding: f, ownName }: { finding: ConflictFinding; ownName: s
         <dt>{t.today}</dt>
         <dd>{f.whoWinsToday}</dd>
       </dl>
-      {f.unconfirmed && <p className="conflict-finding-note">{t.unconfirmed}</p>}
+      {noteUnconfirmed && f.unconfirmed && <p className="conflict-finding-note">{t.unconfirmed}</p>}
       {f.skillChangedAt && <p className="conflict-finding-note">{t.skillChanged(day(f.skillChangedAt))}</p>}
     </details>
   );

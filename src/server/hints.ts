@@ -14,14 +14,18 @@ export interface HintExtras {
   conflicts?: { rules: number; findings: number; plugins: string[]; componentIds: string[] };
 }
 
-/** What the hint needs from the Conflicts view: open rules, their findings, the plugins and the rules' ids. */
+/**
+ * What the hint needs from the Conflicts view: open rules, their findings, the plugins and the rules' ids. Findings
+ * the latest check did not confirm are left out; the page shows them folded away.
+ */
 export function conflictSummary(view: ConflictsView): NonNullable<HintExtras['conflicts']> {
-  const findings = view.themes.flatMap((t) => t.findings);
+  const themes = view.themes.map((t) => ({ ...t, findings: t.findings.filter((f) => !f.unconfirmed) })).filter((t) => t.findings.length);
+  const findings = themes.flatMap((t) => t.findings);
   return {
-    rules: view.themes.length,
+    rules: themes.length,
     findings: findings.length,
     plugins: [...new Set(findings.map((f) => f.skillName.split(':')[0]))],
-    componentIds: view.themes.flatMap((t) => (t.ownId ? [t.ownId] : [])),
+    componentIds: themes.flatMap((t) => (t.ownId ? [t.ownId] : [])),
   };
 }
 
