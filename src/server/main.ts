@@ -51,7 +51,7 @@ const conflicts = createConflictChecker({
 const chatLog = createChatLog({ dir: defaultChatLogDir() });
 const pruned = await chatLog.prune();
 if (pruned.length) console.log(`Chat log: removed ${pruned.length} old daily file(s).`);
-const app = createApp({ ctx, ai: { cache, queue, events, provider: ai.ok ? ai.setup.kind : null, off: ai.ok ? undefined : ai.reason }, backupRoot, git: createClaudeGit(ctx.claudeDir), edit, conflicts, chatLog, allowedHosts: allowedHostsFor(PORT) });
+const app = createApp({ ctx, ai: { cache, queue, events, provider: ai.ok ? ai.setup.kind : null, off: ai.ok ? undefined : ai.reason }, backupRoot, git: createClaudeGit(ctx.claudeDir), edit, replay: {}, conflicts, chatLog, allowedHosts: allowedHostsFor(PORT) });
 serve({ fetch: app.fetch, hostname: HOST, port: PORT }, (info) => {
   console.log(`Context Atlas: http://${HOST}:${info.port} (${ai.ok ? `AI on: ${providerLabel(ai.setup.kind)}, models ${model}/${ai.setup.editModel}` : aiOffText(ai.reason)})`);
   console.log(`Chat log: ${chatLog.dir} (${CHAT_LOG_DAYS} days)`);

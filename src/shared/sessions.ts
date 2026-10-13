@@ -71,3 +71,39 @@ export interface StepDetail {
   /** The text was longer than the page shows. */
   cut: boolean;
 }
+
+/** A passage the replay can leave out: one `## ` section of an instruction file that was in effect at the step. */
+export interface ReplaySection {
+  id: string;
+  /** The file, with ~ for the home folder. */
+  file: string;
+  heading: string;
+  chars: number;
+}
+
+/** What the replay page needs before a run: the passages to choose from and how big the context is. */
+export interface ReplayOptions {
+  sections: ReplaySection[];
+  /** Tokens Claude had in context at this step (from the session), so the page can say what a run costs. */
+  tokens: number | null;
+  /** Why replay cannot run here (no Agent SDK, folder gone); null when it can. */
+  off: string | null;
+}
+
+/** One thing Claude did in its response: a tool call (title like the timeline's, input as text) or an answer. */
+export interface ReplayAction {
+  kind: 'tool' | 'answer';
+  title: string;
+  text: string;
+  tool?: string;
+}
+
+/** The step as it happened, Claude's step again from the same context, and once more without the chosen passage. */
+export interface ReplayResult {
+  original: ReplayAction[];
+  asIs: ReplayAction[];
+  changed: ReplayAction[];
+  section: ReplaySection;
+  model: string;
+  ms: number;
+}

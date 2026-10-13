@@ -85,11 +85,13 @@ export interface SessionReader {
   step(project: string, id: string, i: number): Promise<StepDetail | null>;
   /** All steps with their full texts, for "Why?". */
   steps(project: string, id: string): Promise<FullStep[] | null>;
+  /** The transcript as it is on disk (unmasked), for the replay; it never goes to the page. */
+  raw(project: string, id: string): Promise<string | null>;
 }
 
 /** Reads one session at a time and keeps it, so opening steps one after another does not parse the file again. */
 export function createSessionReader(ctx: ScanContext): SessionReader {
-  let cached: { key: string; summary: SessionSummary; parsed: ParsedSession } | null = null;
+  let cached: { key: string; summary: SessionSummary; parsed: ParsedSession; raw: string } | null = null;
 
   const load = async (project: string, id: string) => {
     const file = sessionFile(ctx, project, id);
@@ -98,9 +100,10 @@ export function createSessionReader(ctx: ScanContext): SessionReader {
     if (!s?.isFile()) return null;
     const key = `${file}:${s.mtimeMs}:${s.size}`;
     if (cached?.key === key) return cached;
-    const parsed = parseTimeline(await readFile(file, 'utf8'), ctx.homeDir);
+    const raw = await readFile(file, 'utf8');
+    const parsed = parseTimeline(raw, ctx.homeDir);
     const summary: SessionSummary = { project, cwd: parsed.cwd, id, title: parsed.title ?? 'No messages', modified: s.mtime.toISOString(), bytes: s.size };
-    cached = { key, summary, parsed };
+    cached = { key, summary, parsed, raw };
     return cached;
   };
 
@@ -108,12 +111,13 @@ export function createSessionReader(ctx: ScanContext): SessionReader {
     // The full texts stay on the server until a step is opened.
     read: async (project, id) => {
       const loaded = await load(project, id);
-      return loaded && { session: loaded.summary, steps: loaded.parsed.steps.map(({ text: _text, ...step }) => step) };
+      return loaded && { session: loaded.summary, steps: loaded.parsed.steps.map(({ text: _text, uuid: _uuid, ...step }) => step) };
     },
     step: async (project, id, i) => {
       const step = (await load(project, id))?.parsed.steps[i];
       return step ? { i, text: step.text.slice(0, DETAIL_MAX), cut: step.text.length > DETAIL_MAX } : null;
     },
     steps: async (project, id) => (await load(project, id))?.parsed.steps ?? null,
+    raw: async (project, id) => (await load(project, id))?.raw ?? null,
   };
 }

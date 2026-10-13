@@ -39,7 +39,7 @@ Context Atlas puts all of it on one page, ordered by the moment it acts, and giv
 
 **See where your rules collide with plugin skills.** In the background, Claude checks every active plugin skill against your CLAUDE.md and rules and lists contradictions, unclear precedence and duplicates, each with verbatim quotes from both sides. The Conflicts view separates what still needs a decision from deliberate deviations, which stay visible. “Decide precedence…” settles a rule: you pick whether your rule or the skills win (or decide per skill), Claude writes an explicit precedence sentence into that rule, and you review it as before/after with its word cost before it is saved and committed. The skills of that rule are then checked again first, and the findings the sentence covers move to the deliberate deviations. Unlike `/doctor`, which checks the technical health of Claude Code, this compares what the texts say.
 
-**Replay what reached Claude in a session.** The Sessions view reads the transcripts in `~/.claude/projects` and lays out one session as a timeline: your messages, the instruction files and skill lists that were loaded, the text each hook injected and the skill bodies Claude pulled in, next to every tool call and answer of Claude. Filter by what came in or by what Claude did, and open any step for its full text. *Why?* on one of Claude's steps asks Claude which of those texts steered it and which applied but were not followed, each with a verbatim quote that the app checks against its source. Transcripts are only read, never changed; secret-like values and your home folder are masked.
+**Replay what reached Claude in a session.** The Sessions view reads the transcripts in `~/.claude/projects` and lays out one session as a timeline: your messages, the instruction files and skill lists that were loaded, the text each hook injected and the skill bodies Claude pulled in, next to every tool call and answer of Claude. Filter by what came in or by what Claude did, and open any step for its full text. *Why?* on one of Claude's steps asks Claude which of those texts steered it and which applied but were not followed, each with a verbatim quote that the app checks against its source. *Replay* takes one of Claude's steps again with Claude Code itself, from the same point of the session: once as it was and once without a section of your instructions you choose, so you see whether that section changes what Claude does. No tool runs during a replay. Transcripts are only read, never changed; secret-like values and your home folder are masked.
 
 **A chat that knows the page you are on.** The chat sees the current page, reads other components in full when it needs them, and proposes changes as a diff you can apply. It also creates new skills, rules, subagents and slash commands. Before anything is written, it checks against what you already have and runs fixed checks on the new file (name, description, frontmatter).
 
@@ -74,6 +74,8 @@ Set `AI_PROVIDER` in `.env`:
 | `router` | `ROUTER_URL` and `ROUTER_API_KEY` of your own OpenAI-compatible router | as your router bills |
 
 The Agent SDK runs isolated: it loads none of your settings, hooks, CLAUDE.md, MCP servers or plugins, has no tools except the app's own read tool, and writes no session files.
+
+*Replay* in the Sessions view is the exception: only Claude Code can resume a session, so it always runs Claude Code through the Agent SDK with this machine's Claude Code login, whatever `AI_PROVIDER` says, and counts against your plan. It also loads none of your settings, refuses every tool call, and resumes from a copy of the session held in memory (the SDK works in a temporary folder of its own).
 
 ## Configuration
 
@@ -115,7 +117,7 @@ flowchart LR
 ## Privacy and security
 
 - Configuration text goes to the AI provider you chose, and only when you trigger an AI feature or a background task runs: the explanations of hooks and the conflict check of plugin skills (once per skill, again only after a text changed). Values that look like secrets are masked before sending. The masking is pattern-based, so treat it as a safety net, not a guarantee.
-- Session transcripts in `~/.claude/projects` are read only when you open the Sessions view. Parts of one session (your message of that turn, hook and skill texts, your instruction files) go to the AI provider only when you click *Why?* on a step, masked like everything else.
+- Session transcripts in `~/.claude/projects` are read only when you open the Sessions view. Parts of one session (your message of that turn, hook and skill texts, your instruction files) go to the AI provider only when you click *Why?* on a step, masked like everything else. *Replay* sends the session up to that step as Claude Code saw it, not masked (it is what Claude Code already sent), through your Claude Code login to Anthropic, twice per run; nothing under `~/.claude` is written.
 - Each chat turn is logged, masked, to `~/.local/state/context-atlas/chat-logs/`. Logs older than 5 days are deleted.
 - Texts that contain secret-like values cannot be sent to the AI or edited in the app, so a save can never write a mask over a real secret.
 

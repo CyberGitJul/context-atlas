@@ -2,6 +2,7 @@ import { ArrowLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { EXPLAINABLE, INCOMING, type SessionSummary, type SessionTimeline, type StepDetail, type TimelineStep, type WhyItem, type WhyResult } from '../../src/shared/sessions';
 import { usePublishPage } from './PageContext';
+import { ReplayPanel } from './Replay';
 import { t as texts } from './text';
 import { useElapsed } from './useElapsed';
 
@@ -102,6 +103,8 @@ function Step({ step, project, id, ai }: { step: TimelineStep; project: string; 
   const [detail, setDetail] = useState<StepDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [why, setWhy] = useState<{ busy: boolean; result: WhyResult | null; error: string | null }>({ busy: false, result: null, error: null });
+  const [replay, setReplay] = useState(false);
+  const replayRegion = useId();
   const elapsed = useElapsed(why.busy);
   const whyBox = useRef<HTMLDivElement>(null);
   // Focus follows the answer, so a screen reader reads what just appeared.
@@ -142,6 +145,11 @@ function Step({ step, project, id, ai }: { step: TimelineStep; project: string; 
               {t.why}
             </button>
           )}
+          {EXPLAINABLE.has(step.kind) && (
+            <button type="button" className="step-why" aria-expanded={replay} aria-controls={replayRegion} onClick={() => setReplay((o) => !o)} aria-label={t.replayLabel(step.title)}>
+              {t.replay}
+            </button>
+          )}
         </div>
         {!open && step.preview && step.preview !== step.title && <p className="step-preview">{step.preview}</p>}
         <div id={region} className="step-detail" hidden={!open}>
@@ -175,6 +183,9 @@ function Step({ step, project, id, ai }: { step: TimelineStep; project: string; 
             <p className="why-foot">{t.whyFoot(why.result.model, why.result.sources)}</p>
           </div>
         )}
+        <div id={replayRegion} hidden={!replay}>
+          {replay && <ReplayPanel url={`/api/sessions/${encodeURIComponent(project)}/${encodeURIComponent(id)}/steps/${step.i}/replay`} />}
+        </div>
       </div>
     </li>
   );

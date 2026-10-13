@@ -492,3 +492,41 @@ button { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .step-chevron { transition: none; }
 }
+
+/* Replay (sessions, slice 7-3): the step again, as it was and without one section; the third column stands out when it differs. */
+.replay-box { margin: 6px 0 4px 24px; }
+.replay { padding: 10px 14px; background: var(--surface-2); border-radius: var(--radius-card); }
+.replay-lede { margin: 0 0 8px; color: var(--muted); font-size: .88rem; max-width: 72ch; }
+.replay-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.replay-form label { font-size: .85rem; font-weight: 600; }
+.replay-form select { flex: 1 1 260px; min-width: 0; max-width: 100%; min-height: 34px; padding: 4px 8px; font: inherit; font-size: .88rem; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; }
+.replay-form .primary { min-height: 34px; padding: 4px 14px; font: inherit; font-weight: 500; color: var(--surface); background: var(--track); border: 1px solid var(--track); border-radius: var(--radius-card); cursor: pointer; }
+.replay-form .primary:disabled { opacity: .5; cursor: default; }
+.replay-result { margin-top: 10px; }
+.replay-result:focus:not(:focus-visible) { outline: none; }
+.replay-verdict { margin: 0 0 8px; font-weight: 500; }
+.replay-different { color: var(--trigger); }
+.replay-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--rule); }
+.replay-grid section { min-width: 0; padding: 8px 12px 6px; }
+.replay-grid section + section { border-left: 1px solid var(--rule); }
+.replay-grid section.replay-changed { background: var(--trigger-soft); box-shadow: inset 3px 0 0 var(--trigger); }
+.replay-grid h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 0 0 6px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+.replay-differs { padding: 0 8px; font-size: .75rem; font-weight: 600; color: var(--trigger); background: var(--surface); border-radius: 10px; }
+.replay-grid ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.replay-grid li { min-width: 0; font-size: .88rem; }
+.replay-title { font-weight: 500; overflow-wrap: anywhere; }
+.replay-answer { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; overflow: hidden; -webkit-line-clamp: 8; -webkit-box-orient: vertical; }
+.replay-grid details { margin-top: 4px; }
+.replay-grid summary { font-size: .8rem; color: var(--track); cursor: pointer; }
+.replay-grid pre { max-height: 40vh; margin: 4px 0 0; padding: 8px 10px; overflow: auto; font: .75rem/1.5 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border-radius: 6px; }
+.replay-none { margin: 0; color: var(--muted); font-size: .88rem; }
+.replay-foot { margin: 8px 0 0; color: var(--muted); font-size: .82rem; max-width: 80ch; }
+@media (max-width: 760px) {
+  /* "Why?" and "Replay" go below the title, so it keeps the width. */
+  .step-row { flex-wrap: wrap; row-gap: 2px; }
+  .step-row .step-head { flex-basis: 100%; }
+  .step-row .step-head + .step-why { margin-left: 24px; }
+  .replay-box { margin-left: 0; }
+  .replay-grid { grid-template-columns: minmax(0, 1fr); }
+  .replay-grid section + section { border-left: 0; border-top: 1px solid var(--rule); }
+}

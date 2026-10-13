@@ -95,6 +95,12 @@ export const app = {
     notClaude: '“Why?” explains only what Claude did: tool calls and answers.',
     incomplete: 'The AI response is incomplete. Try again.',
     providerFailed: (reason: string) => `The AI provider did not answer (${reason}). Try again later.`,
+    replayOff: 'Replay is not available in this setup.',
+    replayNotClaude: 'Replay works only on what Claude did: tool calls and answers.',
+    replayNoCut: 'This step cannot be replayed: the transcript has nothing before it.',
+    replayFolderGone: (folder: string) => `The session’s working folder no longer exists (${folder}); Claude Code needs it to resume.`,
+    replaySection: 'Choose a section that was in effect at this step.',
+    replayFailed: (reason: string) => `Replay failed (${reason}). Try again.`,
   },
   file: {
     readOnlyMode: 'Read-only mode: saving is off.',

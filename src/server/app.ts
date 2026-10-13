@@ -2,7 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { stream, streamSSE } from 'hono/streaming';
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Component, Explanation, Overview } from '../shared/model.js';
 import { isNewKind } from '../shared/model.js';
@@ -37,6 +38,10 @@ import { saveComponentPair, saveComponentText } from './edit/save.js';
 import { scanGlobal } from './scan/index.js';
 import { createSessionReader, listSessions } from './sessions/files.js';
 import { checkWhy, WHY_SCHEMA, whyContext, whyPrompt } from './sessions/why.js';
+import { actionsOf, cutBefore, parseEntries, passages, prepareCopy, replayOnce, responseBlocks, type QueryFn } from './sessions/replay.js';
+import { maskText } from './sessions/timeline.js';
+import { EXPLAINABLE, type ReplayOptions, type ReplayResult } from '../shared/sessions.js';
+import { modelId } from './ai/anthropic-client.js';
 import { keepPointers, linksFor, resolveLinks, skillifyBlock, skillPointers, sourceKeyOf } from '../shared/skill-links.js';
 
 const DIST = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'web', 'dist');
@@ -63,6 +68,8 @@ export interface AppDeps {
   chatLog?: ChatLog | null;
   /** Background check of own instructions against plugin skills; absent in tests that don't need it. */
   conflicts?: ConflictChecker | null;
+  /** Replay of Claude's steps: always Claude Code itself (Agent SDK with this machine's Claude Code login), whatever the AI provider; absent in tests that don't need it. */
+  replay?: { query?: QueryFn } | null;
   /** AI quick actions (best model, manual only); null/absent without an AI provider. */
   edit?: (ActionConfig & { client: RouterJsonClient & Partial<RouterChatClient> }) | null;
   ai: {
@@ -184,6 +191,62 @@ export function createApp(deps: AppDeps): Hono {
       }
     } catch (e) {
       return c.json({ error: m.providerFailed((e as Error).message) }, 502);
+    }
+  });
+
+  /** The cut before step `i` and the sections in effect there; an error text and status when the step cannot be replayed. */
+  const replaySetup = async (project: string, id: string, i: number) => {
+    const m = msg.app.sessions;
+    const step = Number.isInteger(i) ? (await sessions.steps(project, id))?.[i] : undefined;
+    if (!step) return { error: m.notFound, status: 404 as const };
+    if (!step.uuid || !EXPLAINABLE.has(step.kind)) return { error: m.replayNotClaude, status: 400 as const };
+    const raw = await sessions.raw(project, id);
+    const cut = raw ? cutBefore(parseEntries(raw), step.uuid) : null;
+    if (!cut) return { error: m.replayNoCut, status: 400 as const };
+    const cwd = cut.kept.findLast((e) => typeof e.cwd === 'string')?.cwd as string | undefined;
+    const folderOk = !!cwd && (await stat(cwd).then((s) => s.isDirectory(), () => false));
+    const usage = cut.response[0]?.message?.usage ?? {};
+    const tokens = ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens'].reduce((sum, k) => sum + (Number(usage[k]) || 0), 0) || null;
+    const off = !deps.replay ? m.replayOff : !folderOk ? m.replayFolderGone(cwd ? maskText(cwd, deps.ctx.homeDir) : '?') : null;
+    return { cut, cwd: cwd ?? '', sections: passages(cut.kept, deps.ctx.homeDir), tokens, off };
+  };
+
+  /** Replay, before a run: the sections of the instructions in effect at Claude's step, to leave one out. */
+  app.get('/api/sessions/:project/:id/steps/:i/replay', async (c) => {
+    const setup = await replaySetup(c.req.param('project'), c.req.param('id'), Number(c.req.param('i')));
+    if ('error' in setup) return c.json({ error: setup.error }, setup.status);
+    const options: ReplayOptions = { sections: setup.sections.map(({ text: _t, ...s }) => s), tokens: setup.tokens, off: setup.off };
+    return c.json(options);
+  });
+
+  /**
+   * Replay: Claude's step once more from the session cut right before it, as it was and without the chosen section.
+   * Both runs read a copy in memory; no tool is run and nothing is saved.
+   */
+  app.post('/api/sessions/:project/:id/steps/:i/replay', async (c) => {
+    const m = msg.app.sessions;
+    const setup = await replaySetup(c.req.param('project'), c.req.param('id'), Number(c.req.param('i')));
+    if ('error' in setup) return c.json({ error: setup.error }, setup.status);
+    if (setup.off || !deps.replay) return c.json({ error: setup.off ?? m.replayOff }, 503);
+    const body = (await c.req.json().catch(() => null)) as { section?: unknown } | null;
+    const section = setup.sections.find((s) => s.id === body?.section);
+    if (!section) return c.json({ error: m.replaySection }, 400);
+    const original = setup.cut.response[0]?.message;
+    const model = typeof original?.model === 'string' && original.model.startsWith('claude-') ? original.model : modelId(deps.edit?.model ?? 'opus');
+    const run = (swap?: { from: string; to: string }) => {
+      const sessionId = randomUUID();
+      return replayOnce({ entries: prepareCopy(setup.cut.kept, sessionId, swap).entries, sessionId, cwd: setup.cwd, model, query: deps.replay?.query, signal: c.req.raw.signal });
+    };
+    const started = Date.now();
+    try {
+      const pair = () => Promise.all([run(), run({ from: section.text, to: '' })]);
+      const [asIs, changed] = queue ? await queue.runExclusive(pair) : await pair();
+      const home = deps.ctx.homeDir;
+      const { text: _t, ...shown } = section;
+      const result: ReplayResult = { original: actionsOf(responseBlocks(setup.cut.response), home), asIs: actionsOf(asIs, home), changed: actionsOf(changed, home), section: shown, model, ms: Date.now() - started };
+      return c.json(result);
+    } catch (e) {
+      return c.json({ error: m.replayFailed((e as Error).message) }, 502);
     }
   });
 

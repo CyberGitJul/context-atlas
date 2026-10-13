@@ -1,8 +1,8 @@
 import type { StepKind, TimelineStep } from '../../shared/sessions.js';
 import { redact } from '../redact.js';
 
-/** A step with its full (masked) text; the page gets the text only on demand. */
-export type FullStep = TimelineStep & { text: string };
+/** A step with its full (masked) text; the page gets the text only on demand. `uuid` (Claude's steps) stays on the server. */
+export type FullStep = TimelineStep & { text: string; uuid?: string };
 
 export interface ParsedSession {
   steps: FullStep[];
@@ -37,6 +37,12 @@ function toolSubject(name: string, input: Record<string, unknown>): string | nul
   return (
     str('description') ?? str('skill') ?? str('file_path') ?? str('notebook_path') ?? str('pattern') ?? str('url') ?? str('query') ?? str('command') ?? str('prompt') ?? null
   );
+}
+
+/** A tool call's title as the timeline shows it: the tool and what it was about. */
+export function toolTitle(name: string, input: Record<string, unknown>): string {
+  const subject = toolSubject(name, input);
+  return subject ? `${name}: ${firstLine(subject)}` : name;
 }
 
 /** Secret-like values masked, the home folder shown as ~ (screenshots and shared links don't carry the user name). */
@@ -129,11 +135,12 @@ export function parseTimeline(jsonl: string, homeDir: string): ParsedSession {
 
     if (e.type === 'assistant') {
       for (const b of (Array.isArray(e.message?.content) ? e.message.content : []) as Block[]) {
-        if (b.type === 'text' && typeof b.text === 'string' && b.text.trim()) add('answer', at, firstLine(b.text), b.text);
+        const uuid = typeof e.uuid === 'string' ? e.uuid : undefined;
+        if (b.type === 'text' && typeof b.text === 'string' && b.text.trim()) add('answer', at, firstLine(b.text), b.text, { uuid });
         if (b.type === 'tool_use' && typeof b.id === 'string' && typeof b.name === 'string') {
           const input = (b.input && typeof b.input === 'object' ? b.input : {}) as Record<string, unknown>;
           const subject = toolSubject(b.name, input);
-          const step = add('tool', at, subject ? `${b.name}: ${firstLine(subject)}` : b.name, JSON.stringify(input, null, 2), { tool: b.name });
+          const step = add('tool', at, toolTitle(b.name, input), JSON.stringify(input, null, 2), { tool: b.name, uuid });
           tools.set(b.id, { name: b.name, step, subject });
         }
       }
