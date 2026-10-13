@@ -44,7 +44,9 @@ export const conflicts = {
   decide: {
     button: 'Decide precedence…',
     question: 'Who wins: your rule or the skills?',
-    lede: (n: number) => `${n} plugin ${n === 1 ? 'skill collides' : 'skills collide'} with this rule. Pick one; the app writes the sentence into your instructions so Claude knows it too.`,
+    lede: (rule: string, n: number) => `Your rule “${rule}” collides with ${n} plugin ${n === 1 ? 'skill' : 'skills'}. Pick who wins; the app writes the sentence into your instructions so Claude knows it too.`,
+    collision: 'What collides',
+    collisionNote: 'Each line is one collision; open it to see your rule and the skill side by side.',
     step1: 'Decide',
     own: 'Your rule wins',
     ownNote: 'The skills keep their steps, but your rule applies inside them too.',

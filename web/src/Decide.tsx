@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ConflictsView, ConflictTheme, DecideProposal, Winner } from '../../src/shared/conflicts';
+import { Finding } from './Conflicts';
 import { DiffView } from './DiffView';
 import { usePublishPage } from './PageContext';
 import { t as texts } from './text';
@@ -135,7 +136,7 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
       </nav>
       <header className="detail-head">
         <h1>{t.question}</h1>
-        {theme && <p className="lede">{t.lede(skills.length)}</p>}
+        {theme && <p className="lede">{t.lede(theme.ownName, skills.length)}</p>}
       </header>
 
       {loadError && (
@@ -152,11 +153,15 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
 
       {theme && (
         <>
-          <ul className="chips">
-            {skills.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ul>
+          <section className="decide-step" aria-labelledby={`${id}-c`}>
+            <h2 id={`${id}-c`}>{t.collision}</h2>
+            <p className="decide-note">{t.collisionNote}</p>
+            <div className="conflict-findings">
+              {theme.findings.map((f, i) => (
+                <Finding key={f.key} finding={f} ownName={theme.ownName} noteUnconfirmed open={i === 0} />
+              ))}
+            </div>
+          </section>
 
           <section className="decide-step" aria-labelledby={`${id}-s1`}>
             <h2 id={`${id}-s1`}>

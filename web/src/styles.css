@@ -407,7 +407,6 @@ button { font: inherit; color: inherit; }
 .decide .choice:has(input:checked) { border-color: var(--track); background: var(--track-soft); }
 .decide .choice:has(input:focus-visible) { outline: 2px solid var(--track); outline-offset: 2px; }
 .decide .choice input:focus-visible { outline: none; }
-.decide .chips { margin-top: 12px; }
 .decide .choices:disabled .choice { cursor: default; opacity: .7; }
 .decide .choice-title { font-weight: 600; }
 .decide .choice-note { color: var(--muted); font-size: .92rem; }
@@ -418,6 +417,7 @@ button { font: inherit; color: inherit; }
 .decide .per-skill label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; }
 .decide .per-skill input { accent-color: var(--track); }
 .decide .button-row .status { color: var(--muted); }
+.decide-note { margin: 0 0 6px; color: var(--muted); font-size: .92rem; }
 .decide-where { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 10px; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
 .decide-words { color: var(--ink); font-weight: 600; }
 .decide-changes { margin: 10px 0 0; padding-left: 20px; }

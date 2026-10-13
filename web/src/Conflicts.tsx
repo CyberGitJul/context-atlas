@@ -264,10 +264,10 @@ function DeliberateCard({ group }: { group: DeliberateGroup }) {
 }
 
 /** One finding: both quotes side by side, when it bites and what Claude does today. */
-function Finding({ finding: f, ownName, noteUnconfirmed = false }: { finding: ConflictFinding; ownName: string; noteUnconfirmed?: boolean }) {
+export function Finding({ finding: f, ownName, noteUnconfirmed = false, open = false }: { finding: ConflictFinding; ownName: string; noteUnconfirmed?: boolean; open?: boolean }) {
   const t = texts.conflicts;
   return (
-    <details className="conflict-finding">
+    <details className="conflict-finding" open={open || undefined}>
       <summary>
         <span className={`sev sev-${f.severity}`}>{t.severity[f.severity]}</span>
         <span className="conflict-finding-skill">{f.skillName}</span>
