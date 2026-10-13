@@ -83,7 +83,8 @@ export const app = {
   },
   decide: {
     noTheme: 'Nothing to decide for this rule any more. Reload the conflicts.',
-    badWinners: 'Decide every skill of this rule, each for your rule or the skill.',
+    badWinners: 'The skills of this rule changed in the meantime. Reload the page and decide again.',
+    ruleReworded: 'The proposal changed your rule text, so findings would lose their quote. Write the sentence again.',
     incomplete: 'The AI response is incomplete. Try again.',
     headingChanged: 'The proposal changed the heading of the rule. Try again.',
     frontmatterChanged: 'The proposal changed the frontmatter of the rule file. Try again.',

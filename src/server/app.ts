@@ -27,6 +27,7 @@ import type { ExplainQueue } from './ai/queue.js';
 import type { ConflictChecker } from './conflicts/checker.js';
 import type { ConflictsView, DecideProposal, Winner } from '../shared/conflicts.js';
 import { DECIDE_SCHEMA, decidePrompt, decideProblem, themeSkills, winnersProblem } from './conflicts/decide.js';
+import { hasQuote } from './conflicts/quotes.js';
 import type { EventHub } from './events.js';
 import { computeHints, conflictSummary } from './hints.js';
 import { wordCount, type ScanContext } from './scan/context.js';
@@ -182,17 +183,21 @@ export function createApp(deps: AppDeps): Hono {
       const { result, model } = queue ? await queue.runExclusive(run) : await run();
       if (typeof result?.after !== 'string') return c.json({ error: m.incomplete }, 502);
       const kept = keepPointers(current.text, result.after);
-      const problem = decideProblem(current.text, kept.text);
+      // The blank lines after the rule stay, so the next heading keeps its distance.
+      const after = kept.text.replace(/\s*$/, '') + (current.text.match(/\s*$/)?.[0] ?? '');
+      const problem = decideProblem(current.text, after);
       if (problem) return c.json({ error: problem === 'heading' ? m.headingChanged : m.frontmatterChanged }, 502);
+      // A reworded rule would drop the findings that quote it on the next check instead of settling them.
+      if (theme.findings.some((f) => hasQuote(current.text, f.quoteOwn) && !hasQuote(after, f.quoteOwn))) return c.json({ error: m.ruleReworded }, 502);
       const proposal: DecideProposal = {
         ownId: component.id,
         ownName: theme.ownName,
         file: current.file && tildePath(current.file),
         before: current.text,
-        after: kept.text,
+        after,
         changes: strings(result.changes),
         restored: kept.restored,
-        wordsDelta: wordCount(kept.text) - wordCount(current.text),
+        wordsDelta: wordCount(after) - wordCount(current.text),
         model,
       };
       return c.json(proposal);

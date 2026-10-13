@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ConflictFinding } from '../../src/shared/conflicts.js';
 import { decidePrompt, decideProblem, themeSkills, winnersProblem } from '../../src/server/conflicts/decide.js';
+import { conflicts } from '../../web/src/locales/conflicts.js';
 
 const f = (skill: string): ConflictFinding => ({
   key: `k-${skill}`,
@@ -54,5 +55,10 @@ describe('decide', () => {
     expect(decideProblem('---\npaths: a\n---\n# R\nx', '---\npaths: a\n---\n# R\nx\n- y')).toBeNull();
     expect(decideProblem('---\npaths: a\n---\n# R\nx', '---\npaths: b\n---\n# R\nx')).toBe('frontmatter');
     expect(decideProblem('---\npaths: a\n---\n# R\nx', '# R\nx')).toBe('heading');
+  });
+
+  // The recheck reports an own sentence as explicit-own in either direction ("your rule wins" or "the skill wins").
+  it('labels a group settled by an own sentence without claiming who wins', () => {
+    expect(conflicts.ownWins).not.toMatch(/win/i);
   });
 });

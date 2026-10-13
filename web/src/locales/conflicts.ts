@@ -12,7 +12,8 @@ export const conflicts = {
   noPrecedence: 'No precedence stated.',
   openRule: 'Open rule',
   minor: 'Minor',
-  ownWins: 'Your rules win',
+  /** An own sentence settles it, in either direction (your rule wins or the skill wins). */
+  ownWins: 'Settled by your sentence',
   skillDefers: 'The skill defers to you',
   inYourRules: 'In your instructions',
   inTheSkill: 'Stated in the skill itself',

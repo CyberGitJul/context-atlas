@@ -176,6 +176,22 @@ describe('POST /api/conflicts/propose', () => {
     expect(calls[0].system).toContain('precedence');
   });
 
+  it('keeps the blank line after the rule, so the next heading stays apart', async () => {
+    const { json } = await propose(SKILLS_WIN);
+    expect(json.after).toBe(`${RULE_A.trimEnd()}\n- Precedence: superpowers:a wins.\n\n`);
+  });
+
+  it('rejects a proposal that reworded the rule where a finding quotes it (502), so no finding vanishes', async () => {
+    const { res, json } = await propose(SKILLS_WIN, { after: (b) => b.replace('Text one two three.', 'Text one two three, also inside skills.') });
+    expect(res.status).toBe(502);
+    expect(json.error).toMatch(/rule text/i);
+  });
+
+  it('tells to reload when the skills of the rule changed meanwhile (400)', async () => {
+    const { json } = await propose({ ownKey: 'CLAUDE.md#Rule A', winners: { 'superpowers:b': 'own' } });
+    expect(json.error).toMatch(/reload/i);
+  });
+
   it('rejects a proposal that renamed the heading (502)', async () => {
     const { res } = await propose(SKILLS_WIN, { after: (b) => b.replace('## Rule A', '## Rule X') });
     expect(res.status).toBe(502);
