@@ -47,6 +47,18 @@ export const edit = {
     jsonInvalid: (line: number, column: number) => `Not valid JSON (line ${line}, column ${column}). Nothing saved; otherwise Claude Code would ignore the whole file.`,
     settingsNotObject: 'settings.json must be a JSON object. Nothing saved.',
   },
+  /** Commits in the user's own git repos under PROJECT_ROOTS. */
+  repo: {
+    noMessage: 'Please enter a commit message.',
+    noFiles: 'No files chosen.',
+    badPath: (p: string) => `Not a path inside the repo: ${p}`,
+    nothingLeft: 'Nothing left to commit: the chosen files have no changes any more.',
+    busy: 'The repo is in the middle of a merge, rebase, cherry-pick or revert, or a chosen file has a conflict. Please finish that in git first; nothing was changed.',
+    untrackedOnPurpose: (p: string) => `${p} was removed from git but kept on disk (git rm --cached). Please finish that in git yourself; committing it here would undo it.`,
+    secret: (p: string) => `Not committed: ${p} contains secret-like values that do not belong in a Git repo.`,
+    tooLarge: (p: string) => `Not committed: ${p} is too large to be checked for secrets here. Please commit it yourself.`,
+    failed: (error: string) => `The commit failed: ${error || 'unknown error'}`,
+  },
   /** Rules for a proposed SKILL.md, agent or command. */
   fileCheck: {
     /** Where a same-named component comes from, shown in parentheses. */

@@ -23,7 +23,7 @@ import { redact } from './redact.js';
 import { aiOffText, providerLabel, type AiOff, type ProviderKind } from './ai/provider.js';
 import { msg } from './messages/index.js';
 import { genericPromptPath, personalAddition, personalPromptPath, readPrompt, withAddition } from './ai/prompts.js';
-import { checkCondensed, PROPOSE_SCHEMA, proposePrompt, REPAIR_SCHEMA, repairPrompt, type Section, splitSections, TEST_SCHEMA, testPrompt, words } from './ai/condense.js';
+import { checkCondensed, PROPOSE_SCHEMA, proposePrompt, REPAIR_SCHEMA, repairPrompt, type Section, splitRuleSections, splitSections, TEST_SCHEMA, testPrompt, words } from './ai/condense.js';
 import type { ExplainQueue } from './ai/queue.js';
 import type { ConflictChecker } from './conflicts/checker.js';
 import type { ConflictsView, DecideProposal, Winner } from '../shared/conflicts.js';
@@ -33,6 +33,7 @@ import type { EventHub } from './events.js';
 import { computeHints, conflictSummary } from './hints.js';
 import { wordCount, type ScanContext } from './scan/context.js';
 import type { ClaudeGit } from './edit/claude-git.js';
+import { commitInRepo, repoOf, repoState, repoStateOf } from './edit/project-git.js';
 import { loadComponentText, resolveEditable } from './edit/resolve.js';
 import { saveComponentPair, saveComponentText } from './edit/save.js';
 import { scanGlobal } from './scan/index.js';
@@ -348,7 +349,9 @@ export function createApp(deps: AppDeps): Hono {
       ? await estimateActions(component, text.text, deps.edit, await contextFor(scan.components, component.id), 'error' in paired ? undefined : paired)
       : localOnlyEstimates(component);
     // The page shows ~/… instead of the home folder: screenshots and shared links don't carry the user name.
-    return c.json({ ...text, file: text.file && tildePath(text.file), actions, links: linksFor(component, scan.components) });
+    // The commit offer belongs to editing: a read-only page (a secret in the file, say) shows none.
+    const repo = text.editable ? await repoStateOf(component.sourcePath, deps.ctx) : null;
+    return c.json({ ...text, file: text.file && tildePath(text.file), actions, links: linksFor(component, scan.components), repo });
   });
 
   app.post('/api/component/action', async (c) => {
@@ -407,7 +410,8 @@ export function createApp(deps: AppDeps): Hono {
     const res = await saveComponentText(target, body.before, body.after, { backupRoot: deps.backupRoot, git: deps.git ?? null });
     if (!res.ok && 'invalid' in res) return c.json({ error: res.invalid }, 400);
     if (!res.ok) return c.json({ error: msg.app.component.changed }, 409);
-    return c.json(res);
+    // A file in a project repo (a linked rule or skill): the page offers to commit what is still open there.
+    return c.json({ ...res, repo: await repoStateOf(target.realFile, deps.ctx) });
   });
 
   /** "Align with skill": the section (or rule) and the skill it points to, saved as one change. */
@@ -440,7 +444,40 @@ export function createApp(deps: AppDeps): Hono {
     );
     if (!res.ok && 'invalid' in res) return c.json({ error: res.invalid }, 400);
     if (!res.ok) return c.json({ error: m.changed }, 409);
-    return c.json({ section: res.first, skill: res.second });
+    return c.json({
+      section: { ...res.first, repo: await repoStateOf(sectionTarget.realFile, deps.ctx) },
+      skill: { ...res.second, repo: await repoStateOf(skillTarget.realFile, deps.ctx) },
+    });
+  });
+
+  /**
+   * The commit offer after saving a file that lies in a git repo under PROJECT_ROOTS: commits the files the user saw
+   * and confirmed. The repo is found from the component (id) or the file path the chat used (path), never given freely.
+   * Pushing stays with the user.
+   */
+  app.post('/api/repo/commit', async (c) => {
+    const m = msg.app.repo;
+    if (!deps.backupRoot) return c.json({ error: m.readOnlyMode }, 403);
+    const body = (await c.req.json().catch(() => null)) as { id?: unknown; path?: unknown; files?: unknown; message?: unknown } | null;
+    if (!Array.isArray(body?.files) || typeof body.message !== 'string' || (typeof body.id !== 'string' && typeof body.path !== 'string')) return c.json({ error: m.fieldsMissing }, 400);
+    let file: string | null;
+    if (typeof body.id === 'string') {
+      const component = (await scanGlobal(deps.ctx)).components.find((x) => x.id === body.id);
+      if (!component) return c.json({ error: msg.app.component.notFound }, 404);
+      file = component.sourcePath;
+    } else {
+      // Only where the path leads: a secret in the file is named by the commit itself, not refused as a path.
+      const t = await resolveProposedFile(body.path, deps.ctx, await extraFiles(), { content: false });
+      if ('refused' in t) return c.json({ error: t.refused }, 403);
+      file = t.real;
+    }
+    const root = file ? await repoOf(file, deps.ctx) : null;
+    if (!root) return c.json({ error: m.noRepo }, 400);
+    const res = await commitInRepo(root, body.files, body.message);
+    const repo = await repoState(root, deps.ctx, file).catch(() => null);
+    // Hook output may name absolute paths; the page shows ~/… like everywhere else.
+    if (!res.ok) return c.json({ error: res.error.replaceAll(`${deps.ctx.homeDir}/`, '~/'), repo }, res.code === 'invalid' ? 400 : res.code === 'failed' ? 500 : 409);
+    return c.json({ commit: res.hash, repo });
   });
 
   app.post('/api/skill/create', async (c) => {
@@ -655,11 +692,27 @@ export function createApp(deps: AppDeps): Hono {
     return c.json({ ok: true });
   });
 
-  /** The global CLAUDE.md as the chat's file pages read it: refused when it holds secrets (a masked rewrite would destroy them). */
-  const globalClaudeMd = async (): Promise<{ text: string } | { error: string }> => {
-    const t = await resolveProposedFile('~/.claude/CLAUDE.md', deps.ctx, []);
-    if ('refused' in t) return { error: t.refused };
-    return t.current === null ? { error: msg.app.condense.noGlobal } : { text: t.current };
+  /**
+   * What "Condense" works on: the global CLAUDE.md as the chat's file pages read it (no id), or one of the user's rule
+   * files (id), also one linked in from a project folder. With the path the page saves it under and its sections.
+   * Refused when it holds secrets: a masked rewrite would destroy them.
+   */
+  type CondenseSource = { text: string; path: string; name: string; preamble: string; sections: Section[] };
+  const condenseSource = async (id: unknown): Promise<CondenseSource | { error: string; status: 400 | 403 | 404 | 409 }> => {
+    const m = msg.app.condense;
+    if (id === undefined) {
+      const t = await resolveProposedFile('~/.claude/CLAUDE.md', deps.ctx, []);
+      if ('refused' in t) return { error: t.refused, status: 409 };
+      if (t.current === null) return { error: m.noGlobal, status: 409 };
+      return { text: t.current, path: '~/.claude/CLAUDE.md', name: 'CLAUDE.md', ...splitSections(t.current) };
+    }
+    const component = typeof id === 'string' ? (await scanGlobal(deps.ctx)).components.find((x) => x.id === id) : undefined;
+    if (!component) return { error: msg.app.component.notFound, status: 404 };
+    if (component.kind !== 'rule' || component.origin.type !== 'user' || !component.sourcePath) return { error: m.onlyRules, status: 400 };
+    const loaded = await loadComponentText(component, deps.ctx);
+    if (loaded.hasSecrets) return { error: msg.app.action.secrets, status: 409 };
+    if (!loaded.editable) return { error: loaded.readOnlyReason ?? msg.app.component.notEditable, status: 403 };
+    return { text: loaded.text, path: tildePath(component.sourcePath), name: component.name, ...splitRuleSections(loaded.text) };
   };
   const promptWithAddition = async (name: string) => {
     const [p, a] = await Promise.all([readPrompt(promptDirs(), `${name}.md`), personalAddition(promptDirs())]);
@@ -678,13 +731,14 @@ export function createApp(deps: AppDeps): Hono {
   const tildePath = (f: string) => (f.startsWith(`${deps.ctx.homeDir}/`) ? `~/${f.slice(deps.ctx.homeDir.length + 1)}` : f);
   const strings = (x: unknown) => (Array.isArray(x) ? x.filter((y): y is string => typeof y === 'string') : []);
 
-  /** "CLAUDE.md verdichten", step 1: a condensed version of every section, checked without AI. Nothing is written. */
+  /** "Condense", step 1: a condensed version of every section, checked without AI. Nothing is written. */
   app.post('/api/condense/propose', async (c) => {
     if (!deps.edit) return c.json({ error: aiOff() }, 503);
-    const file = await globalClaudeMd();
-    if ('error' in file) return c.json({ error: file.error }, 409);
-    const { preamble, sections } = splitSections(file.text);
-    if (!sections.length) return c.json({ error: msg.app.condense.noSections }, 400);
+    const body = (await c.req.json().catch(() => null)) as { id?: unknown } | null;
+    const file = await condenseSource(body?.id);
+    if ('error' in file) return c.json({ error: file.error }, file.status);
+    const { preamble, sections } = file;
+    if (!sections.length) return c.json({ error: body?.id === undefined ? msg.app.condense.noSections : msg.app.condense.emptyRule }, 400);
     const edit = deps.edit;
     type Proposal = { summary?: string; sections?: { index?: number; after?: unknown; changes?: unknown; outsource?: unknown }[] };
     const run = async () => edit.client.json<Proposal>({ prompt: proposePrompt(sections), system: await promptWithAddition('condense'), schema: PROPOSE_SCHEMA, model: edit.model, effort: 'high' });
@@ -697,7 +751,7 @@ export function createApp(deps: AppDeps): Hono {
         const { after, restored, words: w, check } = condensed(s, r ? (r.after as string) : null);
         return { index: s.index, heading: s.heading, before: s.text, after, changes: strings(r?.changes), outsource: typeof r?.outsource === 'string' ? r.outsource : '', restored, words: w, check };
       });
-      return c.json({ file: file.text, preamble, summary: typeof result.summary === 'string' ? result.summary : '', sections: out, model });
+      return c.json({ file: file.text, path: file.path, name: file.name, preamble, summary: typeof result.summary === 'string' ? result.summary : '', sections: out, model });
     } catch (e) {
       return c.json({ error: msg.app.condense.providerFailed((e as Error).message) }, 502);
     }
@@ -706,12 +760,12 @@ export function createApp(deps: AppDeps): Hono {
   /** Step 2, the test afterwards: an independent pass lists the rules of each changed section and how each one fares. */
   app.post('/api/condense/test', async (c) => {
     if (!deps.edit) return c.json({ error: aiOff() }, 503);
-    const body = (await c.req.json().catch(() => null)) as { file?: unknown; sections?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { id?: unknown; file?: unknown; sections?: unknown } | null;
     if (typeof body?.file !== 'string' || !Array.isArray(body.sections)) return c.json({ error: msg.app.request.fileSectionsMissing }, 400);
-    const file = await globalClaudeMd();
-    if ('error' in file) return c.json({ error: file.error }, 409);
+    const file = await condenseSource(body.id);
+    if ('error' in file) return c.json({ error: file.error }, file.status);
     if (file.text !== body.file) return c.json({ error: msg.app.condense.fileChanged }, 409);
-    const { sections } = splitSections(file.text);
+    const { sections } = file;
     const pairs = (body.sections as { index?: unknown; after?: unknown }[]).flatMap((p) => {
       const s = sections.find((x) => x.index === p.index);
       return s && typeof p.after === 'string' && p.after !== s.text ? [{ section: s, after: redact(p.after) }] : [];
@@ -734,12 +788,12 @@ export function createApp(deps: AppDeps): Hono {
    */
   app.post('/api/condense/repair', async (c) => {
     if (!deps.edit) return c.json({ error: aiOff() }, 503);
-    const body = (await c.req.json().catch(() => null)) as { file?: unknown; sections?: unknown } | null;
+    const body = (await c.req.json().catch(() => null)) as { id?: unknown; file?: unknown; sections?: unknown } | null;
     if (typeof body?.file !== 'string' || !Array.isArray(body.sections)) return c.json({ error: msg.app.request.fileSectionsMissing }, 400);
-    const file = await globalClaudeMd();
-    if ('error' in file) return c.json({ error: file.error }, 409);
+    const file = await condenseSource(body.id);
+    if ('error' in file) return c.json({ error: file.error }, file.status);
     if (file.text !== body.file) return c.json({ error: msg.app.condense.fileChanged }, 409);
-    const { sections } = splitSections(file.text);
+    const { sections } = file;
     const items = (body.sections as { index?: unknown; after?: unknown; findings?: unknown }[]).flatMap((p) => {
       const s = sections.find((x) => x.index === p.index);
       if (!s || typeof p.after !== 'string' || p.after === s.text) return [];
@@ -772,7 +826,7 @@ export function createApp(deps: AppDeps): Hono {
     const body = (await c.req.json().catch(() => null)) as { path?: unknown } | null;
     const t = await resolveProposedFile(body?.path, deps.ctx, await extraFiles());
     if ('refused' in t) return c.json({ error: t.refused }, 403);
-    return c.json({ path: t.display, exists: t.exists, text: t.current ?? '', warning: t.warning, inRepo: t.inRepo });
+    return c.json({ path: t.display, exists: t.exists, text: t.current ?? '', warning: t.warning, inRepo: t.inRepo, repo: await repoStateOf(t.real, deps.ctx) });
   });
 
   /** Writes a file proposed in the chat after the user reviewed it; before null = must be new. */
@@ -799,7 +853,7 @@ export function createApp(deps: AppDeps): Hono {
     if (res instanceof Error) return c.json({ error: msg.app.file.refused(res.code ?? res.message.split('\n')[0]) }, 500);
     if (!res.ok && 'invalid' in res) return c.json({ error: res.invalid }, 400);
     if (!res.ok) return c.json({ error: body.before === null ? msg.app.file.existsNow : msg.app.file.changed }, 409);
-    return c.json(res);
+    return c.json({ ...res, repo: await repoStateOf(t.real, deps.ctx) });
   });
 
   app.get('/api/events', (c) =>

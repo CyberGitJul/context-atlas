@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { RepoState } from '../../src/shared/model';
 import { DiffView } from './DiffView';
 import { t } from './text';
 
@@ -20,7 +21,8 @@ export interface AlignPair {
   };
 }
 
-type PairSaved = { section: { backup: string; commit: string | null; warning: string | null }; skill: { backup: string; commit: string | null; warning: string | null } };
+type SavedPart = { backup: string; commit: string | null; warning: string | null; repo?: RepoState | null };
+type PairSaved = { section: SavedPart; skill: SavedPart };
 
 const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
 
@@ -31,7 +33,8 @@ export function PairReview({ sectionId, sectionName, sectionBefore, data, onSave
   /** Saved text of the section (the comparison starts there, unsaved edits included in the proposal). */
   sectionBefore: string;
   data: AlignPair;
-  onSaved: (notice: { tone: 'ok' | 'warn'; text: string }) => void;
+  /** `skillRepo`: the project repo the skill lies in, when it is one (a linked skill), for the commit offer. */
+  onSaved: (notice: { tone: 'ok' | 'warn'; text: string }, skillRepo: RepoState | null) => void;
   onCancel: () => void;
 }) {
   const d = t.detail.pair;
@@ -55,7 +58,7 @@ export function PairReview({ sectionId, sectionName, sectionBefore, data, onSave
     onSaved({
       tone: warning ? 'warn' : 'ok',
       text: [warning, d.saved(pair.skillName), commits.length ? d.commits(commits.join(', ')) : '', d.backups(body.section.backup, body.skill.backup)].filter(Boolean).join(' '),
-    });
+    }, body.skill.repo ?? null);
   };
 
   return (

@@ -33,7 +33,7 @@ Context Atlas puts all of it on one page, ordered by the moment it acts, and giv
 
 <img src="docs/images/detail.png" alt="Detail page of a CLAUDE.md section: a shortened proposal with the reasons for each change, a before/after comparison, and the list of AI actions" width="100%">
 
-**Condense your CLAUDE.md without losing rules.** Claude rewrites every section as short as possible, in plain prose, not telegram style. Fixed checks without AI guard headings, code, paths, numbers, negations and mandatory words. An independent rule test then compares old and new text rule by rule. A reviewer puts back whatever got lost or weaker, and the repaired sections are tested again. Only sections that are shorter and pass every check are preselected.
+**Condense your CLAUDE.md and rule files without losing rules.** Claude rewrites every section as short as possible, in plain prose, not telegram style. It works on the global CLAUDE.md and on each of your rule files (open the rule, then *Condense this rule file*); a rule file without `## ` sections counts as one section, and its frontmatter is never touched. Fixed checks without AI guard headings, code, paths, numbers, negations and mandatory words. An independent rule test then compares old and new text rule by rule. A reviewer puts back whatever got lost or weaker, and the repaired sections are tested again. Only sections that are shorter and pass every check are preselected.
 
 <img src="docs/images/condense.png" alt="Condense page: total word savings, the summary, and each section with its rule test result and the reviewer's fixes" width="62%">
 
@@ -46,6 +46,8 @@ Context Atlas puts all of it on one page, ordered by the moment it acts, and giv
 <img src="docs/images/chat.png" alt="Chat next to a hook: Claude finds that the guard script misses rm -rf ~ and git push -f, and proposes a fixed script to apply to the comparison" width="100%">
 
 **Safe by design.** The server listens on `127.0.0.1` only and refuses foreign hosts and cross-site requests. Secret-like values are masked before any text leaves your machine. Claude never writes a file itself; every save is your click. Each save makes a backup and a commit in a separate git history of `~/.claude`, stored outside of it.
+
+**Rules and skills from your own git repo.** If you keep rules or skills in a repo inside `PROJECT_ROOTS` and link them into `~/.claude/rules` or `~/.claude/skills`, they stay editable here, condensing and the conflict check included. A save writes to the link target and keeps the link. The page then shows what is not committed or not pushed yet in that repo and offers to commit the files you tick, with your own git identity and hooks; only the file you saved is ticked at first, so other work in the repo stays out. Pushing stays with you; the app shows the command.
 
 **Your files, your language.** The interface is in English; your instructions, rules and skills can be written in any language. Proposed edits keep the language of the file, and the chat answers in the language you write in.
 
@@ -88,7 +90,7 @@ All settings go into `.env` (see [`.env.example`](.env.example)) or the environm
 | `AI_MODEL_EDIT` | `opus` | model for quick actions, condensing and the chat |
 | `ANTHROPIC_API_KEY` | | for `AI_PROVIDER=anthropic` |
 | `ROUTER_URL`, `ROUTER_API_KEY` | | for `AI_PROVIDER=router` |
-| `PROJECT_ROOTS` | none | folders with your projects, separated like `PATH`, `~` allowed. Skills linked into `~/.claude/skills` from there become editable |
+| `PROJECT_ROOTS` | none | folders with your projects, separated like `PATH`, `~` allowed. Skills and rule files linked into `~/.claude/skills` and `~/.claude/rules` from there become editable, with a commit offer for their git repo |
 | `PORT` | `8795` | port of the local server |
 | `CLAUDE_CONFIG_DIR` | `~/.claude` | the Claude Code folder to map, as Claude Code itself reads it |
 
@@ -111,7 +113,7 @@ flowchart LR
 ```
 
 - **Read:** one scanner per source (instructions, rules, skills, hooks, MCP, plugins, agents, commands, output styles, settings, memory) reads fresh from disk on every request. Nothing is cached except the AI explanations and the session last opened in the timeline.
-- **Write:** only your own files under `~/.claude` (and skills inside `PROJECT_ROOTS`) are editable. Plugin files, claude.ai-synced skills and anything Claude Code manages itself stay read-only. Every save checks that the file did not change meanwhile, keeps a backup in `~/.cache/context-atlas/backups` and commits to `~/.local/share/context-atlas/claude-config.git`. That git history lives outside `~/.claude` and tracks only hand-written configuration.
+- **Write:** only your own files under `~/.claude` (and skills and rule files linked in from `PROJECT_ROOTS`) are editable. Plugin files, claude.ai-synced skills and anything Claude Code manages itself stay read-only. Every save checks that the file did not change meanwhile, keeps a backup in `~/.cache/context-atlas/backups` and commits to `~/.local/share/context-atlas/claude-config.git`. That git history lives outside `~/.claude` and tracks only hand-written configuration. A file linked in from a project repo is written at its target; that repo is never committed to on its own, only through the commit offer you confirm, and never pushed.
 - **AI:** structured answers (JSON schemas) for the quick actions; a streamed chat with one read tool. Explanations are cached per model.
 
 ## Privacy and security

@@ -13,7 +13,7 @@ export interface ScanContext {
   homeDir: string;
   /** Managed policy directory, default /etc/claude-code. */
   managedDir?: string;
-  /** Folders with the user's projects (PROJECT_ROOTS): skills linked in from there can be edited. Default: none. */
+  /** Folders with the user's projects (PROJECT_ROOTS): skills and rule files linked in from there can be edited. Default: none. */
   projectRoots?: string[];
   /** The user's own settings folder (live-sources.json); without it only the generic, empty list in config/ applies. */
   personalDir?: string;
@@ -50,6 +50,15 @@ export function parseProjectRoots(value: string | undefined, homeDir: string): s
 /** The project roots as real paths, so they compare with resolved link targets even when a root is itself a link. */
 export async function realProjectRoots(ctx: ScanContext): Promise<string[]> {
   return Promise.all((ctx.projectRoots ?? []).map((r) => realpath(r).catch(() => r)));
+}
+
+/** `project:<name>` for a link target inside a project root (the first folder below the root), else null. */
+export function projectOf(target: string, realRoots: string[]): string | null {
+  for (const root of realRoots) {
+    const prefix = root.endsWith(path.sep) ? root : root + path.sep;
+    if (target.startsWith(prefix)) return `project:${target.slice(prefix.length).split(path.sep)[0]}`;
+  }
+  return null;
 }
 
 export async function readText(p: string): Promise<string | null> {

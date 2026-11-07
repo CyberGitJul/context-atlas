@@ -1,7 +1,9 @@
 import { ArrowLeft, ExternalLink, Lightbulb } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { joinSections } from '../../src/shared/sections';
+import type { RepoState } from '../../src/shared/model';
 import { DiffView } from './DiffView';
+import { RepoPanel } from './RepoPanel';
 import { t as texts } from './text';
 import { usePublishPage } from './PageContext';
 
@@ -21,6 +23,9 @@ interface ProposedSection {
 type Repaired = Pick<ProposedSection, 'index' | 'after' | 'restored' | 'words' | 'check'> & { changes: string[] };
 interface Proposal {
   file: string;
+  /** Where the page saves it: ~/.claude/CLAUDE.md or the rule file (its link, when it is linked in). */
+  path: string;
+  name: string;
   preamble: string;
   summary: string;
   sections: ProposedSection[];
@@ -35,7 +40,7 @@ interface Rule {
   note: string;
 }
 
-const heading = (h: string) => h.replace(/^##\s*/, '');
+const heading = (h: string, fallback: string) => h.replace(/^#+\s*/, '') || fallback;
 /** Detail page of a CLAUDE.md section: the scan numbers sections like the split here. */
 const sectionHref = (index: number) => `#/c/${encodeURIComponent(`instruction:user:CLAUDE.md#${index}`)}`;
 
@@ -74,19 +79,23 @@ function useElapsed(step: Phase | undefined) {
 }
 
 /**
- * "CLAUDE.md verdichten": Opus condenses every section boldly in plain short prose, fixed checks run without AI, a
- * second pass tests rule by rule what was kept, a reviewer puts back what got lost and the repaired sections are
- * tested again. Sections are taken over one by one; the file is saved once.
+ * "Condense": Opus condenses every section of CLAUDE.md (no id) or of one rule file (id) boldly in plain short prose,
+ * fixed checks run without AI, a second pass tests rule by rule what was kept, a reviewer puts back what got lost and
+ * the repaired sections are tested again. Sections are taken over one by one; the file is saved once.
  */
-export function CondensePage() {
+export function CondensePage({ id }: { id?: string }) {
   const t = texts.condense;
-  usePublishPage({ id: null, href: '#/condense', name: t.title, editable: false, hasSecrets: false });
+  const name = id ? id.replace(/^rule:user:/, '') : 'CLAUDE.md';
+  const title = id ? t.ruleTitle(name) : t.title;
+  usePublishPage({ id: null, href: id ? `#/condense/${encodeURIComponent(id)}` : '#/condense', name: title, editable: false, hasSecrets: false });
   const [phase, setPhase] = useState<Phase>('idle');
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [rules, setRules] = useState<Map<number, Rule[]> | null>(null);
   const [chosen, setChosen] = useState<Set<number>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: 'ok' | 'warn'; text: string } | null>(null);
+  /** After saving a rule file that lies in a project repo: the commit offer. */
+  const [repo, setRepo] = useState<RepoState | null>(null);
   const step = isStep(phase) ? phase : undefined;
   const elapsed = useElapsed(step);
 
@@ -97,10 +106,11 @@ export function CondensePage() {
     setError(null);
     setNotice(null);
     setRules(null);
+    setRepo(null);
     setPhase('proposing');
     let p: Proposal;
     try {
-      p = await post<Proposal>('/api/condense/propose', {});
+      p = await post<Proposal>('/api/condense/propose', id ? { id } : {});
     } catch (e) {
       setError((e as Error).message);
       return setPhase('idle');
@@ -109,7 +119,7 @@ export function CondensePage() {
     setChosen(preselect(p, null));
     const byIndex = new Map<number, Rule[]>();
     const test = async (sections: { index: number; after: string }[]) => {
-      const res = await post<{ sections: { index: number; rules: Rule[] }[] }>('/api/condense/test', { file: p.file, sections });
+      const res = await post<{ sections: { index: number; rules: Rule[] }[] }>('/api/condense/test', { id, file: p.file, sections });
       for (const s of res.sections) byIndex.set(s.index, s.rules);
       setRules(new Map(byIndex));
     };
@@ -127,6 +137,7 @@ export function CondensePage() {
       setPhase('repairing');
       try {
         const r = await post<{ sections: Repaired[] }>('/api/condense/repair', {
+          id,
           file: p.file,
           sections: needs.map((s) => ({ index: s.index, after: s.after, findings: offRules(byIndex.get(s.index)).map(finding) })),
         });
@@ -164,8 +175,9 @@ export function CondensePage() {
     setError(null);
     const text = joinSections(proposal.preamble, proposal.sections.map((s) => (chosen.has(s.index) ? s.after : s.before)));
     try {
-      const r = await post<{ backup: string | null; commit: string | null; warning: string | null }>('/api/file/save', { path: '~/.claude/CLAUDE.md', before: proposal.file, after: text });
-      setNotice({ tone: r.warning ? 'warn' : 'ok', text: [r.warning, t.saved(chosen.size, after), r.commit ? t.commit(r.commit) : '', r.backup ? t.backup(r.backup) : ''].filter(Boolean).join(' ') });
+      const r = await post<{ backup: string | null; commit: string | null; warning: string | null; repo?: RepoState | null }>('/api/file/save', { path: proposal.path, before: proposal.file, after: text });
+      setNotice({ tone: r.warning ? 'warn' : 'ok', text: [r.warning, t.saved(chosen.size, after, proposal.name), r.commit ? t.commit(r.commit) : '', r.backup ? t.backup(r.backup) : ''].filter(Boolean).join(' ') });
+      setRepo(r.repo ?? null);
       setPhase('saved');
     } catch (e) {
       setError((e as Error).message);
@@ -178,12 +190,12 @@ export function CondensePage() {
 
   return (
     <main className="detail condense">
-      <a className="back" href="#/">
-        <ArrowLeft className="icon" aria-hidden="true" /> {t.back}
+      <a className="back" href={id ? `#/c/${encodeURIComponent(id)}` : '#/'}>
+        <ArrowLeft className="icon" aria-hidden="true" /> {id ? t.backTo(name) : t.back}
       </a>
       <header className="detail-head">
-        <h1>{t.title}</h1>
-        <p className="lede">{t.lede}</p>
+        <h1>{title}</h1>
+        <p className="lede">{id ? t.ruleLede : t.lede}</p>
       </header>
 
       {phase === 'idle' && (
@@ -209,6 +221,7 @@ export function CondensePage() {
           {notice.text}
         </p>
       )}
+      {repo && proposal && <RepoPanel repo={repo} target={{ path: proposal.path }} />}
 
       {proposal && (
         <>
@@ -237,7 +250,7 @@ export function CondensePage() {
                 <label className="condense-head">
                   <input type="checkbox" checked={chosen.has(s.index)} onChange={() => toggle(s.index)} disabled={busy || phase === 'saved'} />
                   <span id={`cs-${s.index}`} className="condense-title">
-                    {heading(s.heading)}
+                    {heading(s.heading, name)}
                   </span>
                   <span className="condense-words">{t.words(s.words.before, s.words.after)}</span>
                 </label>
@@ -286,7 +299,7 @@ export function CondensePage() {
                   <p className="condense-outsource">
                     <Lightbulb className="icon" aria-hidden="true" />
                     <span>
-                      {s.outsource} <SkillifyLink index={s.index} />
+                      {s.outsource} <SkillifyLink href={id ? `#/c/${encodeURIComponent(id)}` : sectionHref(s.index)} />
                     </span>
                   </p>
                 )}
@@ -311,7 +324,7 @@ export function CondensePage() {
               <ul className="condense-changes">
                 {outsourceOnly.map((s) => (
                   <li key={s.index}>
-                    <strong>{heading(s.heading)}:</strong> {s.outsource} <SkillifyLink index={s.index} />
+                    <strong>{heading(s.heading, name)}:</strong> {s.outsource} <SkillifyLink href={id ? `#/c/${encodeURIComponent(id)}` : sectionHref(s.index)} />
                   </li>
                 ))}
               </ul>
@@ -323,10 +336,10 @@ export function CondensePage() {
   );
 }
 
-/** Opens the section's detail page, where the skillify action runs; in a new tab, so this proposal stays. */
-function SkillifyLink({ index }: { index: number }) {
+/** Opens the detail page of the section (or rule file), where the skillify action runs; in a new tab, so this proposal stays. */
+function SkillifyLink({ href }: { href: string }) {
   return (
-    <a href={sectionHref(index)} target="_blank" rel="noopener">
+    <a href={href} target="_blank" rel="noopener">
       {texts.actions.skillify}
       <ExternalLink className="icon" aria-hidden="true" />
       <span className="sr-only"> {texts.condense.newTab}</span>

@@ -188,6 +188,8 @@ function currentRoute(): {
   file: string | null;
   create: NewKind | null;
   condense: boolean;
+  /** Id of a rule file to condense. */
+  condenseRule: string | null;
   conflicts: boolean;
   decide: string | null;
   sessions: boolean;
@@ -213,6 +215,7 @@ function currentRoute(): {
     file: f ? decode(f[1]) : null,
     create: isNewKind(n) ? n : null,
     condense: location.hash === '#/condense',
+    condenseRule: location.hash.startsWith('#/condense/') ? decode(location.hash.slice('#/condense/'.length)) : null,
     conflicts: location.hash === '#/conflicts',
     decide: d ? decode(d[1]) : null,
     sessions: location.hash === '#/sessions',
@@ -231,7 +234,7 @@ function readChatOpen(): boolean {
   }
 }
 
-/** Hash routes: #/ overview, #/c/<id> detail page, #/f/<path> file proposed in the chat, #/new/<kind> create a skill, rule, agent or command, #/condense, #/conflicts, #/conflicts/decide/<rule>, #/sessions, #/sessions/<project>/<id>. The chat stays mounted across pages. */
+/** Hash routes: #/ overview, #/c/<id> detail page, #/f/<path> file proposed in the chat, #/new/<kind> create a skill, rule, agent or command, #/condense, #/condense/<rule id>, #/conflicts, #/conflicts/decide/<rule>, #/sessions, #/sessions/<project>/<id>. The chat stays mounted across pages. */
 export function App() {
   const [route, setRoute] = useState(currentRoute);
   const [chatOpen, setChatOpen] = useState(readChatOpen);
@@ -256,6 +259,8 @@ export function App() {
         <FilePage key={route.file} path={route.file} />
       ) : route.condense ? (
         <CondensePage />
+      ) : route.condenseRule ? (
+        <CondensePage key={route.condenseRule} id={route.condenseRule} />
       ) : route.conflicts ? (
         <ConflictsPage />
       ) : route.decide ? (

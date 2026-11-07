@@ -5,6 +5,7 @@ import { condense } from './locales/condense';
 import { conflicts } from './locales/conflicts';
 import { create } from './locales/create';
 import { detail } from './locales/detail';
+import { repo } from './locales/repo';
 import { sessions } from './locales/sessions';
 
 /** All interface texts, in English, in one place. Texts with numbers or names are small functions. */
@@ -86,6 +87,7 @@ export const t = {
     rationale: 'Add reason & example',
   } satisfies Record<ActionId, string>,
   detail,
+  repo,
   condense,
   conflicts,
   sessions,

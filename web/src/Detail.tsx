@@ -1,7 +1,7 @@
 import { ArrowLeft, Link2, Lock, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { stepOf } from '../../src/shared/flow';
-import type { ComponentText } from '../../src/shared/model';
+import type { ComponentText, RepoState } from '../../src/shared/model';
 import { maskedCount } from '../../src/shared/chat-proposals';
 import { keepPointers, retargetPointer, skillPointers, type ComponentLinks, type SkillLink } from '../../src/shared/skill-links';
 import { t, type Messages } from './text';
@@ -10,9 +10,11 @@ import { DiffView } from './DiffView';
 import { PairReview, type AlignPair } from './PairReview';
 import { hrefOf, usePendingProposal, usePublishPage } from './PageContext';
 import { Editor } from './Editor';
+import { RepoPanel } from './RepoPanel';
 
-type DetailData = ComponentText & { actions: ActionInfo[]; links: ComponentLinks };
-type SaveResponse = { ok: true; backup: string; commit: string | null; commitStatus: 'committed' | 'unchanged' | 'ignored' | 'secret' | 'failed' | 'none'; warning: string | null; repoCreated: boolean };
+/** `repo`: the project repo the file lies in (a linked rule or skill), with what is not committed or pushed yet. */
+type DetailData = ComponentText & { actions: ActionInfo[]; links: ComponentLinks; repo: RepoState | null };
+type SaveResponse = { ok: true; backup: string; commit: string | null; commitStatus: 'committed' | 'unchanged' | 'ignored' | 'secret' | 'failed' | 'none'; warning: string | null; repoCreated: boolean; repo: RepoState | null };
 type Notice = { tone: 'ok' | 'warn' | 'error'; text: string; reload?: boolean };
 
 function whenLabel(text: ComponentText, t: Messages): string {
@@ -83,6 +85,8 @@ export function Detail({ id }: { id: string }) {
 
   const [actionRunning, setActionRunning] = useState(false);
   const [pair, setPair] = useState<AlignPair | null>(null);
+  /** After aligning: the repo of the paired skill, when it lies in another project repo than this file. */
+  const [skillRepo, setSkillRepo] = useState<{ repo: RepoState; id: string } | null>(null);
 
   /** A chat proposal goes into the same before/after review as the quick actions. */
   const applyChat = useCallback(
@@ -141,6 +145,7 @@ export function Detail({ id }: { id: string }) {
   useEffect(() => {
     setData(null);
     setNotice(null);
+    setSkillRepo(null);
     load();
   }, [load]);
 
@@ -167,7 +172,8 @@ export function Detail({ id }: { id: string }) {
     if (res.commit) parts.push(d.commit(res.commit));
     else if (res.commitStatus === 'unchanged') parts.push(d.commitUnchanged);
     else if (res.commitStatus === 'ignored') parts.push(d.commitIgnored);
-    else if (!data.inRepo) parts.push(d.outsideClaude);
+    // A file in a project repo gets the commit offer below instead.
+    else if (!data.inRepo && !res.repo) parts.push(d.outsideClaude);
     parts.push(d.backup(res.backup));
     setNotice({ tone: res.warning ? 'warn' : 'ok', text: [res.warning, parts.join(' ')].filter(Boolean).join(' ') });
     load();
@@ -192,6 +198,11 @@ export function Detail({ id }: { id: string }) {
           {d.lede(kinds[c.kind], c.origin.type === 'plugin' ? d.originPlugin(c.origin.plugin) : c.origin.type === 'live' ? d.originLive : d.originOwn, whenLabel(data, t))}
         </p>
         {data.file && <p className="path">{data.file}</p>}
+        {c.kind === 'rule' && data.editable && (
+          <p className="lede">
+            <a href={`#/condense/${encodeURIComponent(id)}`}>{d.condenseRule}</a>
+          </p>
+        )}
       </header>
       {data.links.pointers.map((l) =>
         l.state === 'ok' ? (
@@ -248,6 +259,8 @@ export function Detail({ id }: { id: string }) {
           )}
         </p>
       )}
+      {data.repo && <RepoPanel repo={data.repo} target={{ id }} />}
+      {skillRepo && skillRepo.repo.root !== data.repo?.root && <RepoPanel repo={skillRepo.repo} target={{ id: skillRepo.id }} />}
       <div className="detail-grid">
         <section aria-label={d.textSection}>
           {pair ? (
@@ -257,7 +270,8 @@ export function Detail({ id }: { id: string }) {
               sectionBefore={data.text}
               data={pair}
               onCancel={() => setPair(null)}
-              onSaved={(n) => {
+              onSaved={(n, repo) => {
+                setSkillRepo(repo ? { repo, id: pair.pair.skillId } : null);
                 setPair(null);
                 setNotice(n);
                 load();

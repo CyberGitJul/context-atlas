@@ -24,6 +24,7 @@ export const detail = {
     commitUnchanged: 'No commit needed, the content was already versioned.',
     commitIgnored: 'Not versioned: the file is outside the versioned areas.',
     outsideClaude: 'It is outside ~/.claude, so there is no commit.',
+    condenseRule: 'Condense this rule file section by section, with a rule test',
     backup: (path: string) => `Backup: ${path}`,
     pointedBy: 'Referenced from',
     pointedByAfter: '. This skill holds the flow of this instruction.',

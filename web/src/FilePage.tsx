@@ -2,7 +2,9 @@ import { ArrowLeft, FilePlus2, TriangleAlert } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { DiffView } from './DiffView';
 import { Editor } from './Editor';
+import type { RepoState } from '../../src/shared/model';
 import { riskyLines } from '../../src/shared/risky-lines';
+import { RepoPanel } from './RepoPanel';
 import { t } from './text';
 import { hrefOf, usePendingProposal, usePublishPage } from './PageContext';
 
@@ -12,6 +14,8 @@ interface FileInfo {
   text: string;
   warning: string | null;
   inRepo: boolean;
+  /** The project repo the file lies in (a linked rule or skill), if any. */
+  repo: RepoState | null;
 }
 type Notice = { tone: 'ok' | 'warn' | 'error'; text: string; reload?: boolean };
 
@@ -33,6 +37,8 @@ export function FilePage({ path }: { path: string }) {
   const [version, setVersion] = useState(0);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
+  /** After saving a file that lies in a project repo (a linked rule or skill): the commit offer. */
+  const [repo, setRepo] = useState<RepoState | null>(null);
   /** Server rules for this file (SKILL.md: name = folder, description); errors block saving. */
   const [check, setCheck] = useState<{ errors: string[]; warnings: string[] }>({ errors: [], warnings: [] });
 
@@ -90,14 +96,15 @@ export function FilePage({ path }: { path: string }) {
   const save = async () => {
     if (!info || draft === null) return;
     setSaving(true);
-    const r = await post<{ backup: string | null; commit: string | null; warning: string | null }>('/api/file/save', { path, before: info.exists ? info.text : null, after: draft }).catch(() => null);
+    const r = await post<{ backup: string | null; commit: string | null; warning: string | null; repo?: RepoState | null }>('/api/file/save', { path, before: info.exists ? info.text : null, after: draft }).catch(() => null);
     setSaving(false);
     if (!r) return setNotice({ tone: 'error', text: c.serverDown });
     if (r.status === 409) return setNotice({ tone: 'error', text: r.body.error ?? c.conflict, reload: true });
     if (!r.ok) return setNotice({ tone: 'error', text: r.body.error ?? `HTTP ${r.status}` });
     const parts = [info.exists ? c.saved : c.created];
     if (r.body.commit) parts.push(c.commit(r.body.commit));
-    else if (!info.inRepo) parts.push(c.noCommit);
+    else if (!info.inRepo && !r.body.repo) parts.push(c.noCommit);
+    setRepo(r.body.repo ?? null);
     if (r.body.backup) parts.push(c.backup(r.body.backup));
     setDraft(null);
     // Saved is saved: if the file can no longer be shown here (e.g. it now holds a secret), say so next to the success.
@@ -126,7 +133,7 @@ export function FilePage({ path }: { path: string }) {
       <header className="detail-head">
         <h1>{info.path}</h1>
         <p className="lede">
-          {info.exists ? c.existingProposed : c.newProposed} {info.inRepo ? c.inRepo : c.outsideRepo}
+          {info.exists ? c.existingProposed : c.newProposed} {info.inRepo ? c.inRepo : info.repo ? c.inProjectRepo(info.repo.display) : c.outsideRepo}
         </p>
       </header>
       {(info.warning || risky.length > 0) && (
@@ -172,6 +179,7 @@ export function FilePage({ path }: { path: string }) {
           )}
         </p>
       )}
+      {repo && <RepoPanel repo={repo} target={{ path }} />}
       <section aria-label={c.textLabel} className="file-review">
         {reviewing ? (
           <>

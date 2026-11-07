@@ -94,6 +94,7 @@ export const create = {
     newProposed: 'New file, created when you save it. Proposed in the chat.',
     inRepo: 'It is in ~/.claude: backup and commit.',
     outsideRepo: 'It is outside ~/.claude: backup, no commit.',
+    inProjectRepo: (repo: string) => `It lies in the Git repo ${repo}: backup, then you can commit it there.`,
     riskyIntro: 'These lines in the proposal run something or grant permissions:',
     riskyLine: (line: number, why: string) => `Line ${line}, ${why}: `,
     /** Why a line is risky, by the code from `riskyLines`. */

@@ -1,7 +1,7 @@
 import { lstat, readlink, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { Component, Origin } from '../../shared/model.js';
-import { isFile, isObject, listDir, parseFrontmatter, readJsonChecked, readText, realProjectRoots, sha256, str, wordCount, type ScanContext } from './context.js';
+import { isFile, isObject, listDir, parseFrontmatter, projectOf, readJsonChecked, readText, realProjectRoots, sha256, str, wordCount, type ScanContext } from './context.js';
 import type { PluginInfo } from './plugins.js';
 import { LEGACY_SOURCE_KEY, SOURCE_KEY } from '../../shared/skill-links.js';
 
@@ -9,10 +9,8 @@ type Overrides = Record<string, string>;
 
 /** Who looks after a linked skill: a project (first folder below a project root), an installer, or someone else. */
 function managedBy(target: string, roots: string[], ctx: ScanContext): string {
-  for (const root of roots) {
-    const prefix = root.endsWith(path.sep) ? root : root + path.sep;
-    if (target.startsWith(prefix)) return `project:${target.slice(prefix.length).split(path.sep)[0]}`;
-  }
+  const project = projectOf(target, roots);
+  if (project) return project;
   if (target.startsWith(path.join(ctx.homeDir, '.agents') + path.sep)) return 'installer';
   return 'external';
 }

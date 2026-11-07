@@ -108,3 +108,28 @@ export interface ComponentText {
   /** The file lives in ~/.claude and is committed there on save. */
   inRepo: boolean;
 }
+
+/** One uncommitted change in a project repo: path relative to its work tree, git's two status letters (`.M`, `D.`, `??`). */
+export interface RepoChange {
+  path: string;
+  status: string;
+  /** Old path of a rename. */
+  from?: string;
+}
+
+/** A git repo under PROJECT_ROOTS that holds a file edited here (a linked rule or skill): what is not committed or pushed yet. */
+export interface RepoState {
+  /** Real path of the work tree. */
+  root: string;
+  /** The same with ~ for the home folder, as shown. */
+  display: string;
+  /** The file the page is about, relative to the work tree (with `/`); the commit offer preselects it. */
+  file: string | null;
+  /** null when HEAD is detached. */
+  branch: string | null;
+  upstream: string | null;
+  /** Commits not pushed to the upstream yet; behind counts as of the last fetch. */
+  ahead: number;
+  behind: number;
+  changes: RepoChange[];
+}

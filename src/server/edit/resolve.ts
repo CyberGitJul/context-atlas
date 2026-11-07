@@ -20,6 +20,17 @@ function within(file: string, dir: string): boolean {
   return file.startsWith(dir.endsWith(path.sep) ? dir : dir + path.sep);
 }
 
+/**
+ * A link target in a project folder that may be written through a link in ~/.claude: inside a project root, never
+ * into a `.git` folder and never a hidden file such as `.env`. `ext` is the extension the link itself has.
+ */
+export function projectTargetOk(real: string, realRoots: string[], ext: string): boolean {
+  const root = realRoots.find((r) => within(real, r));
+  if (!root) return false;
+  const parts = path.relative(root, real).split(path.sep);
+  return !parts.includes('.git') && !parts.at(-1)!.startsWith('.') && path.extname(real) === ext;
+}
+
 /** Read-only reason, or null if this kind of component can be edited at all. */
 function readOnlyReason(c: Component): string | null {
   const m = msg.edit.resolve;
@@ -48,7 +59,10 @@ export async function resolveEditable(c: Component, ctx: ScanContext): Promise<E
   if (inRepo && (within(realFile, path.join(claudeDir, 'plugins')) || within(realFile, path.join(claudeDir, 'projects')))) {
     return { readOnly: m.managedArea };
   }
-  if (!inRepo && !(c.kind === 'skill' && projectRoots.some((r) => within(realFile, r)))) return { readOnly: m.outside };
+  // Own skills and rule files may live in a project folder and be linked in; the edit then goes to the link target.
+  const linkedIn =
+    (c.kind === 'skill' && projectRoots.some((r) => within(realFile, r))) || (c.kind === 'rule' && projectTargetOk(realFile, projectRoots, '.md'));
+  if (!inRepo && !linkedIn) return { readOnly: m.outside };
   if (c.kind === 'hook' && !within(realFile, path.join(claudeDir, 'hooks'))) return { readOnly: m.hookOutside };
   const target: EditTarget = { file: c.sourcePath, realFile, inRepo };
   if (c.kind === 'instruction') target.section = { index: Number(c.detail.index), heading: c.name };

@@ -4,8 +4,9 @@ import path from 'node:path';
 import { msg } from '../messages/index.js';
 import { redact } from '../redact.js';
 import { jsonErrorIndex, lineColumn } from '../scan/json-position.js';
-import type { ScanContext } from '../scan/context.js';
+import { realProjectRoots, type ScanContext } from '../scan/context.js';
 import type { ClaudeGit, CommitOutcome } from './claude-git.js';
+import { projectTargetOk } from './resolve.js';
 import { saveComponentText } from './save.js';
 
 // Warnings are kept as codes and worded when the request answers.
@@ -67,9 +68,16 @@ export interface ProposedFile {
 
 /**
  * Decides whether a chat may propose writing this path: own configuration in ~/.claude or one of
- * the single files listed in config/chat-files.json. Checked again after following symlinks.
+ * the single files listed in config/chat-files.json. Checked again after following symlinks; a rule or
+ * skill linked in from a project root (PROJECT_ROOTS) may lead there.
  */
-export async function resolveProposedFile(input: unknown, ctx: ScanContext, extraFiles: string[]): Promise<ProposedFile | { refused: string }> {
+export async function resolveProposedFile(
+  input: unknown,
+  ctx: ScanContext,
+  extraFiles: string[],
+  /** content: false only resolves the path (for the commit offer); the file is then not read or checked. */
+  opts: { content?: boolean } = {},
+): Promise<ProposedFile | { refused: string }> {
   const m = msg.edit.files;
   if (typeof input !== 'string' || !input.trim() || input.includes('\0')) return { refused: m.noPath };
   const expand = (p: string) => (p.startsWith('~/') ? path.join(ctx.homeDir, p.slice(2)) : p);
@@ -83,7 +91,10 @@ export async function resolveProposedFile(input: unknown, ctx: ScanContext, extr
 
   const real = await realTarget(abs);
   const realClaude = await realpath(ctx.claudeDir).catch(() => ctx.claudeDir);
-  const asReal = rule(real, realClaude, await Promise.all(extras.map(realTarget)));
+  let asReal = rule(real, realClaude, await Promise.all(extras.map(realTarget)));
+  // Own rules and skills kept in a project folder and linked into ~/.claude are written at the link target.
+  const linkable = asWritten.inRepo && /^(rules|skills)$/.test(path.relative(ctx.claudeDir, abs).split(path.sep)[0]);
+  if (!asReal.ok && linkable && projectTargetOk(real, await realProjectRoots(ctx), path.extname(abs))) asReal = { ok: true, warning: null, inRepo: false };
   if (!asReal.ok) return { refused: m.symlinkOut };
 
   const st = await stat(real).catch(() => null);
@@ -91,7 +102,7 @@ export async function resolveProposedFile(input: unknown, ctx: ScanContext, extr
   // A symlink without target would make creating the file fail forever with "exists already".
   if (!st && (await lstat(abs).catch(() => null))?.isSymbolicLink()) return { refused: m.symlinkNoTarget };
   let current: string | null = null;
-  if (st) {
+  if (st && opts.content !== false) {
     const raw = await readFile(real);
     current = raw.toString('utf8');
     if (!Buffer.from(current, 'utf8').equals(raw)) return { refused: m.notUtf8 };

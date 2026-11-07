@@ -1,8 +1,11 @@
 /** Interface texts of the Condense page: CondensePage.tsx. */
 export const condense = {
   title: 'Condense CLAUDE.md',
+  ruleTitle: (name: string) => `Condense ${name}`,
   back: 'Back to overview',
+  backTo: (name: string) => `Back to ${name}`,
   lede: 'Your global CLAUDE.md goes to Claude in full with every message. Opus proposes a shorter version of each section, in full sentences rather than telegram style, and cuts boldly. Fixed checks without AI watch headings, pointer lines, code, paths, numbers, negations and mandatory words; a rule test checks rule by rule what was kept. A reviewer puts back what got lost, then the sections are tested again. You choose the sections; saving makes a backup and a commit.',
+  ruleLede: 'This rule file goes to Claude in full with every message, or whenever Claude works on matching files if the rule names paths. Opus proposes a shorter version of each “## ” section (a file without such sections counts as one), in full sentences rather than telegram style. Fixed checks without AI and a rule test watch every rule; a reviewer puts back what got lost. You choose the sections; saving makes a backup and writes the file, through its link when it lives in a project folder.',
   start: 'Create proposal',
   startNote: 'Up to four AI passes in a row; this takes a few minutes.',
   steps: {
@@ -24,7 +27,7 @@ export const condense = {
   saving: 'Saving …',
   apply: (n: number) => `Apply ${n} ${n === 1 ? 'section' : 'sections'}`,
   newProposal: 'New proposal',
-  saved: (n: number, words: number) => `${n} ${n === 1 ? 'section' : 'sections'} applied, CLAUDE.md now has ${words} words.`,
+  saved: (n: number, words: number, name: string) => `${n} ${n === 1 ? 'section' : 'sections'} applied, ${name} now has ${words} words.`,
   commit: (hash: string) => `Commit ${hash}.`,
   backup: (path: string) => `Backup: ${path}`,
   testRunning: 'Rule test running …',

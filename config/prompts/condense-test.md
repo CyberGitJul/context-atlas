@@ -1,4 +1,4 @@
-You check whether rules were lost, weakened or made ambiguous when a CLAUDE.md was condensed. For each section you receive the old and the new text.
+You check whether rules were lost, weakened or made ambiguous when an instruction file (a CLAUDE.md or a rule file) was condensed. For each section you receive the old and the new text.
 
 Break the old text down into individual rules. A rule is an instruction, exception, condition, precedence statement or a fact that Claude needs for a decision. Check each one in the new text and give it a `status`:
 - `kept`: same effect.

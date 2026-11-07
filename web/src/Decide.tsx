@@ -1,8 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { ConflictsView, ConflictTheme, DecideProposal, Winner } from '../../src/shared/conflicts';
+import type { RepoState } from '../../src/shared/model';
 import { Finding } from './Conflicts';
 import { DiffView } from './DiffView';
 import { usePublishPage } from './PageContext';
+import { RepoPanel } from './RepoPanel';
 import { Enforce, type EnforceItem } from './ResultView';
 import { t as texts } from './text';
 import { useElapsed } from './useElapsed';
@@ -48,7 +50,8 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
   const [proposal, setProposal] = useState<DecideProposal | null>(null);
   const [busy, setBusy] = useState<'write' | 'save' | 'enforce' | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{ commit: string | null; warning: string | null; queued: number | null } | null>(null);
+  /** `repo`: the project repo the rule file lies in when it is linked in from there, for the commit offer. */
+  const [saved, setSaved] = useState<{ commit: string | null; warning: string | null; queued: number | null; repo: RepoState | null } | null>(null);
   // The enforce check belongs to the text it was run on: a new sentence hides the old answer.
   const [check, setCheck] = useState<{ proposal: DecideProposal; result: EnforceResult | null; error: string | null } | null>(null);
   const shownCheck = proposal && check?.proposal === proposal ? check : null;
@@ -121,13 +124,13 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
     setBusy('save');
     setError(null);
     try {
-      const res = await post<{ commit: string | null; warning: string | null }>(`/api/component/save?id=${encodeURIComponent(proposal.ownId)}`, { before: proposal.before, after: proposal.after });
+      const res = await post<{ commit: string | null; warning: string | null; repo?: RepoState | null }>(`/api/component/save?id=${encodeURIComponent(proposal.ownId)}`, { before: proposal.before, after: proposal.after });
       // The save stands on its own; without the re-check the next visit to Conflicts queues every due pair anyway.
       const queued = await post<{ queued: string[] }>('/api/conflicts/recheck', { ownKey }).then(
         (r) => r.queued.length,
         () => null,
       );
-      setSaved({ commit: res.commit, warning: res.warning, queued });
+      setSaved({ commit: res.commit, warning: res.warning, queued, repo: res.repo ?? null });
     } catch (e) {
       // The rule changed on disk since the sentence was written: that proposal can never be saved.
       if (e instanceof HttpError && e.status === 409) {
@@ -325,6 +328,7 @@ export function DecidePage({ ownKey }: { ownKey: string }) {
                   </div>
                 )}
                 {saved?.warning && <p className="notice warn">{saved.warning}</p>}
+                {saved?.repo && proposal && <RepoPanel repo={saved.repo} target={{ id: proposal.ownId }} />}
                 {error && (
                   <p className="notice error" role="status">
                     {error}

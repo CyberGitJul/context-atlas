@@ -3,9 +3,9 @@ import { msg } from '../messages/index.js';
 import { redact } from '../redact.js';
 import { wordCount } from '../scan/context.js';
 
-/** "CLAUDE.md verdichten": the file in sections, fixed checks without AI, and the shapes of the two AI passes. */
+/** "Condense": CLAUDE.md or a rule file in sections, fixed checks without AI, and the shapes of the AI passes. */
 
-export { joinSections, splitSections, type Section } from '../../shared/sections.js';
+export { joinSections, splitRuleSections, splitSections, type Section } from '../../shared/sections.js';
 import type { Section } from '../../shared/sections.js';
 
 /** Words whose loss changes a rule: negations, restrictions, obligations (German and English). */
@@ -42,7 +42,8 @@ export function checkCondensed(before: Section, after: string): CondenseCheck {
   const m = msg.edit.condense;
   const errors: string[] = [];
   const warnings: string[] = [];
-  if (after.split('\n')[0] !== before.heading) errors.push(m.headingChanged);
+  // A rule file without sections and without a heading line has no heading to keep.
+  if (before.heading && after.split('\n')[0] !== before.heading) errors.push(m.headingChanged);
   if (/\n## /.test(after)) errors.push(m.extraHeading);
   const lostPointers = skillPointers(before.text).filter((p) => !skillPointers(after).includes(p));
   if (lostPointers.length) errors.push(m.pointerMissing(lostPointers.map((p) => `${pointerForm(before.text, p)} \`${p}\``)));

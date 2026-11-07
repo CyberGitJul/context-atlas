@@ -77,9 +77,11 @@ export const app = {
   condense: {
     noGlobal: 'There is no global CLAUDE.md.',
     noSections: 'The CLAUDE.md has no “## ” sections.',
+    emptyRule: 'The rule file has no text to condense.',
+    onlyRules: 'Condensing works on the global CLAUDE.md and on your own rule files.',
     incomplete: 'The AI response is incomplete. Try again.',
     providerFailed: (reason: string) => `The AI provider did not answer (${reason}). Try again later.`,
-    fileChanged: 'The CLAUDE.md was changed in the meantime. Create the proposal again.',
+    fileChanged: 'The file was changed in the meantime. Create the proposal again.',
   },
   decide: {
     noTheme: 'Nothing to decide for this rule any more. Reload the conflicts.',
@@ -101,6 +103,11 @@ export const app = {
     replayFolderGone: (folder: string) => `The session’s working folder no longer exists (${folder}); Claude Code needs it to resume.`,
     replaySection: 'Choose a section that was in effect at this step.',
     replayFailed: (reason: string) => `Replay failed (${reason}). Try again.`,
+  },
+  repo: {
+    readOnlyMode: 'Read-only mode: committing is off.',
+    fieldsMissing: 'id or path, files and message are missing.',
+    noRepo: 'This file is in no Git repo under your project folders (PROJECT_ROOTS).',
   },
   file: {
     readOnlyMode: 'Read-only mode: saving is off.',

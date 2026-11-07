@@ -1,7 +1,8 @@
+import { realpath } from 'node:fs/promises';
 import path from 'node:path';
 import type { Component } from '../../shared/model.js';
 import { skillPointers } from '../../shared/skill-links.js';
-import { firstLine, listDir, parseFrontmatter, readText, sha256, wordCount, type ScanContext } from './context.js';
+import { firstLine, listDir, parseFrontmatter, projectOf, readText, realProjectRoots, sha256, wordCount, type ScanContext } from './context.js';
 
 /** `@path` imports in a CLAUDE.md (outside code spans). */
 export function parseImports(text: string): string[] {
@@ -48,14 +49,28 @@ async function listMarkdown(dir: string, rel = ''): Promise<string[]> {
   return out;
 }
 
+/**
+ * Where a rule file really lives when a link (the file or a folder above it) leads out of ~/.claude, and the project it
+ * belongs to when that place is inside a project root. Nothing for files in ~/.claude and for links elsewhere.
+ */
+async function linkDetail(file: string, realClaude: string, roots: string[]): Promise<Component['detail']> {
+  const real = await realpath(file).catch(() => null);
+  if (!real || real.startsWith(realClaude + path.sep)) return {};
+  const project = projectOf(real, roots);
+  return project ? { linkTarget: real, managedBy: project } : {};
+}
+
 async function rules(ctx: ScanContext): Promise<Component[]> {
   const dir = path.join(ctx.claudeDir, 'rules');
+  const realClaude = await realpath(ctx.claudeDir).catch(() => ctx.claudeDir);
+  const roots = await realProjectRoots(ctx);
   const out: Component[] = [];
   for (const rel of await listMarkdown(dir)) {
     const file = path.join(dir, rel);
     const text = (await readText(file)) ?? '';
     const { data, body } = parseFrontmatter(text);
     const paths = typeof data.paths === 'string' ? [data.paths] : Array.isArray(data.paths) ? data.paths.map(String) : [];
+    const link = await linkDetail(file, realClaude, roots);
     out.push({
       id: `rule:user:${rel}`,
       kind: 'rule',
@@ -67,7 +82,7 @@ async function rules(ctx: ScanContext): Promise<Component[]> {
       summary: firstLine(body),
       contextWords: paths.length ? 0 : wordCount(body),
       hash: sha256(text),
-      detail: withPointers(paths.length ? { paths } : {}, body),
+      detail: withPointers(paths.length ? { ...link, paths } : link, body),
     });
   }
   return out;
